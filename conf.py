@@ -56,6 +56,8 @@ needs_extra_links = [
 needs_id_required = True
 needs_id_regex = r"^[A-Z]+_[A-Za-z0-9_]+$"
 
+suppress_warnings = ["needs.deprecated"]
+
 # Statuses used across all need types (tailor per-project as needed)
 needs_statuses = [
     dict(name="draft",     description="Initial draft, not reviewed"),
