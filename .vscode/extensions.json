@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "lextudio.restructuredtext",
+    "swyddfa.esbonio",
+    "trond-snekvik.simple-rst",
+    "bazelbuild.vscode-bazel",
+    "ms-python.python",
+    "rust-lang.rust-analyzer",
+    "ms-vscode.cpptools"
+  ]
+}

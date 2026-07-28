@@ -1,0 +1,10 @@
+# Safety-relevant paths require safety team review
+/safety/               @product-x/safety-team
+/features/ota/safety/  @product-x/safety-team
+
+# Security-relevant paths require security team review
+/security/              @product-x/security-team
+/features/ota/security/ @product-x/security-team
+
+# Everything else
+*                       @product-x/eng-leads

@@ -1,0 +1,4 @@
+User-manual
+===========
+
+(placeholder content)

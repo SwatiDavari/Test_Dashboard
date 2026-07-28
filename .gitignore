@@ -1,0 +1,5 @@
+_build/
+__pycache__/
+*.pyc
+bazel-*
+.DS_Store

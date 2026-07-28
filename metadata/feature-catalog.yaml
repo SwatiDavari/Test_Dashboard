@@ -1,0 +1,16 @@
+features:
+  - id: FEAT_OTA
+    name: OTA
+    path: features/ota
+    safety_relevant: true
+    security_relevant: true
+  - id: FEAT_DIAGNOSTICS
+    name: Diagnostics
+    path: features/diagnostics
+    safety_relevant: false
+    security_relevant: false
+  - id: FEAT_LOGGING
+    name: Logging
+    path: features/logging
+    safety_relevant: false
+    security_relevant: false

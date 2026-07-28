@@ -1,0 +1,4 @@
+Logging Requirements
+====================
+
+(placeholder content)

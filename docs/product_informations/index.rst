@@ -1,0 +1,4 @@
+Product informations
+====================
+
+(placeholder content)

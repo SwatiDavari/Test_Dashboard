@@ -1,0 +1,5 @@
+components:
+  - id: CMP_SIGNALROUTER
+    name: signal-router
+    module: MOD_COM
+    path: features/ota/modules/com/components/signal-router

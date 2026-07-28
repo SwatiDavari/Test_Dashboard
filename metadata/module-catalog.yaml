@@ -1,0 +1,5 @@
+modules:
+  - id: MOD_COM
+    name: com
+    feature: FEAT_OTA
+    path: features/ota/modules/com

@@ -1,0 +1,18 @@
+name: Build & Test (multi-language)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  bazel-build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.8.1
+      - name: Build all targets
+        run: bazel build //...
+      - name: Test all targets
+        run: bazel test //...

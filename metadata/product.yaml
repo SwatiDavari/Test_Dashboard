@@ -1,0 +1,7 @@
+product:
+  name: product-x
+  id: PROD_X
+  owner: TBD
+  aspice_level: TBD
+  asil_scope: [QM, A, B, C, D]   # narrow to actual scope per product
+  cybersecurity_scope: true
