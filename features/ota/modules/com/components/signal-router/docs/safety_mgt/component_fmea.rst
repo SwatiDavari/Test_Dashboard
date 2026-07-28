@@ -6,9 +6,8 @@ architecture (as part of the SW Safety Concept). Detections,
 preventions, mitigations linked to Software Component Requirements or
 Assumptions of Use.
 
-See :need:`CMP_SIGNALROUTER_001` (defined in
-``requirements/index.rst``) for the component requirement this FMEA
-verifies.
+This FMEA verifies :need:`CMP_SIGNALROUTER_001`, defined in
+``requirements/index.rst``.
 
 FMEA table (placeholder)
 ----------------------------
