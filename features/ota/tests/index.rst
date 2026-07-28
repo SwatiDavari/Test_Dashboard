@@ -1,1 +1,4 @@
-tests/index.rst
+OTA Tests
+==========
+
+(placeholder content)
