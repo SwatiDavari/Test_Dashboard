@@ -44,6 +44,12 @@ product-x documentation
    docs/user-manual/index
 
 .. toctree::
+   :maxdepth: 2
+   :caption: Tests
+
+   tests/index
+
+.. toctree::
    :maxdepth: 1
    :caption: Traceability
 
