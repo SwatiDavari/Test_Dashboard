@@ -1,1 +1,5 @@
 # Root aggregator — declare per-language targets in src/cpp, src/rust, src/python
+cc_binary(
+    name = "hello",
+    srcs = ["hello.cpp"],
+)
