@@ -18,7 +18,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y default-jre-headless graphviz plantuml
       - name: Install Sphinx + Sphinx-Needs
-        run: pip install sphinx sphinx-needs sphinx-rtd-theme sphinxcontrib-plantuml
+        run: pip install sphinx sphinx-needs sphinx-rtd-theme sphinxcontrib-plantuml Pillow
       - name: Build docs
         run: sphinx-build -b html . _build/html -W
       - name: Traceability gate — fail on orphan needs
