@@ -1,0 +1,4 @@
+module(
+    name = "product_x",
+    version = "0.1.0",
+)
