@@ -6,14 +6,9 @@ architecture (as part of the SW Safety Concept). Detections,
 preventions, mitigations linked to Software Component Requirements or
 Assumptions of Use.
 
-.. cmp_req:: Signal router component requirement
-   :id: CMP_SIGNALROUTER_001
-   :status: draft
-   :derives_from: ARC_COM_001
-
-   The signal-router component shall forward validated OTA payload
-   signals from the update-server-interface to the bootloader-interface
-   without modification.
+See :need:`CMP_SIGNALROUTER_001` (defined in
+``requirements/index.rst``) for the component requirement this FMEA
+verifies.
 
 FMEA table (placeholder)
 ----------------------------
