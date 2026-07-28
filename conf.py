@@ -56,15 +56,14 @@ needs_links = [
 needs_id_required = True
 needs_id_regex = r"^[A-Z]+_[A-Za-z0-9_]+$"
 
-suppress_warnings = ["needs.deprecated"]
-
 # Statuses used across all need types (tailor per-project as needed)
-needs_statuses = [
-    dict(name="draft",     description="Initial draft, not reviewed"),
-    dict(name="review",    description="Under review"),
-    dict(name="approved",  description="Reviewed and approved"),
-    dict(name="obsolete",  description="No longer applicable"),
-]
+needs_fields = {
+    "status": {
+        "schema": {
+            "enum": ["draft", "review", "approved", "obsolete"]
+        }
+    }
+}
 
 # Traceability gate: fail build on orphan needs (no incoming/outgoing links)
 needs_report_dead_links = True
