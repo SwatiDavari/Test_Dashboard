@@ -1,4 +1,11 @@
-OTA Tests
-=========
+Tests
+======
 
-(placeholder content)
+.. toctree::
+   :maxdepth: 1
+
+   unit/index
+   component/index
+   integration/index
+   regression/index
+   system/index
