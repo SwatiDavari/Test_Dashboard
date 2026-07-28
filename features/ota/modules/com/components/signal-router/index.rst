@@ -1,4 +1,10 @@
 Signal Router Component
-=======================
+=========================
 
-(placeholder content)
+.. toctree::
+   :maxdepth: 1
+
+   requirements/index
+   unit-design/index
+   docs/index
+   tests/index
