@@ -1,4 +1,9 @@
-Signal Router Docs
-==================
+Signal Router Component Documentation
+=========================================
 
-(placeholder content)
+.. toctree::
+   :maxdepth: 1
+
+   safety_mgt/component_fmea
+   safety_mgt/component_dfa
+   security_mgt/component_vulnerability_analysis
