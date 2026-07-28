@@ -1,4 +1,1 @@
-OTA Tests
-==========
-
-(placeholder content)
+tests/index.rst
