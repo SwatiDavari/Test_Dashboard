@@ -44,7 +44,7 @@ needs_types = [
 ]
 
 # Link types connecting the enablers (used for traceability matrices / gates)
-needs_extra_links = [
+needs_links = [
     dict(option="derives_from", incoming="derived by",   outgoing="derives from"),
     dict(option="verifies",     incoming="verified by",  outgoing="verifies"),
     dict(option="mitigates",    incoming="mitigated by", outgoing="mitigates"),   # cyber_req -> threat
