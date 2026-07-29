@@ -10,7 +10,7 @@ be considered valid.
 Safety Culture
 ------------------
 
-..org_req:: Safety culture policy
+.. org_req:: Safety culture policy
    :id: ORG_SAFETY_CULTURE_001
    :status: draft
    :derives_from: ISO26262_2_5_4_2_1
