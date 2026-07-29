@@ -28,6 +28,7 @@ needs_types = [
     dict(directive="stc",         title="System Test Case",        prefix="STC_",  color="#C4FF32", style="node"),
 
     # --- Safety enabler (ISO 26262) ---
+    dict(directive="org_req",     title="Organizational Safety Req (ISO 26262 Part 2)", prefix="ORG_", color="#B8003D", style="node"),
     dict(directive="hazard",      title="Hazard",                  prefix="HAZ_",  color="#FF4D6D", style="node"),
     dict(directive="safety_goal", title="Safety Goal",             prefix="SG_",   color="#FF4D6D", style="node"),
     dict(directive="fsr",         title="Functional Safety Req",   prefix="FSR_",  color="#FF4D6D", style="node"),
