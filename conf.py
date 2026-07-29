@@ -67,5 +67,14 @@ needs_statuses = [
 # Traceability gate: fail build on orphan needs (no incoming/outgoing links)
 needs_report_dead_links = True
 
-html_theme = "sphinx_rtd_theme"
+html_theme = "furo"
 master_doc = "index"
+
+# --- Layout/appearance only — no effect on sphinx-needs functionality ---
+html_theme_options = {
+    "sidebar_hide_name": False,
+    "top_of_page_buttons": ["view", "edit"],
+    "source_repository": "https://github.com/SwatiDavari/Test_Dashboard",
+    "source_branch": "main",
+    "source_directory": "",
+}
