@@ -19,6 +19,12 @@ product-x documentation
 
 .. toctree::
    :maxdepth: 2
+   :caption: Organization-Level Safety (ISO 26262 Part 2)
+
+   governance/iso26262/index
+
+.. toctree::
+   :maxdepth: 2
    :caption: Safety Analysis (ISO 26262 — Platform level)
 
    docs/safety_mgt/platform_dfa
