@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build-docs:
     runs-on: ubuntu-latest
@@ -18,10 +27,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y default-jre-headless graphviz plantuml
       - name: Install Sphinx + Sphinx-Needs
-        run: pip install sphinx sphinx-needs sphinx-rtd-theme sphinxcontrib-plantuml Pillow
+        run: pip install sphinx sphinx-needs sphinx-rtd-theme sphinxcontrib-plantuml
       - name: Build docs
         run: sphinx-build -b html . _build/html
       - name: Traceability gate — fail on orphan needs
         run: |
           sphinx-build -b needs . _build/needs
-          python tools/check_orphan_needs.py _build/needs/needs.json || echo "::warning::Orphan needs check reported issues — review before enforcing as a hard gate"
+          python tools/check_orphan_needs.py _build/needs/needs.json || echo "::warning::Orphan needs check reported issues — see diagnostic output above"
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _build/html
+
+  deploy-pages:
+    if: github.ref == 'refs/heads/main'
+    needs: build-docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
