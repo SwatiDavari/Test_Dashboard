@@ -1,0 +1,49 @@
+{
+  "skill": "qik-axon",
+  "version": "1.0",
+  "description": "Qorix traceability gate — on a change, compute its downstream impact across the artifact graph (intention→requirements→architecture→design→code→tests→docs) and verify trace integrity, driven by `qik axon`.",
+  "tool": "qik",
+  "priming": {
+    "description": "Confirm the trace graph is whole before relying on it.",
+    "source": { "exec": "qik axon check --mcp" },
+    "inject": "context"
+  },
+  "steps": [
+    {
+      "id": "impact",
+      "label": "Impact analysis",
+      "type": "exec",
+      "command": "qik axon impact <ID> --mcp",
+      "parse": "json",
+      "on_fail": "report",
+      "description": "Downstream effect cone of the changed need: a dependency list of artifacts to touch, each with its need id, direction/distance from the start, and source location (file, line from–to). Substitute <ID> with the changed need; use `qik axon blast` for structural changes that ripple upward too."
+    },
+    {
+      "id": "review",
+      "label": "Slice review",
+      "type": "llm",
+      "prompt": "For each artifact in the dependency list, read only its reported location range and judge whether it drifts from the change. Propose edits to the authored needs / code markers; never apply them silently. Answer per artifact with OK, or DRIFT plus location and the proposed change.",
+      "on_fail": "report",
+      "description": "Coordinates, not content: read ranges rather than whole files. The graph is changed by editing the sphinx-needs source and rebuilding, never by hand-editing needs.json."
+    },
+    {
+      "id": "integrity",
+      "label": "Trace integrity",
+      "type": "exec",
+      "command": "qik axon check --mcp",
+      "parse": "json",
+      "on_fail": "block",
+      "fail_when": "summary.errors > 0",
+      "description": "Orphans and dangling links. Any error-severity statement blocks: the graph is broken and must be repaired before the change is done."
+    }
+  ],
+  "triggers": {
+    "on_demand": true,
+    "pre_edit": false,
+    "pre_commit": true
+  },
+  "output": {
+    "format": "statements",
+    "note": "`qik axon … --mcp` emits dependency lists (trace/impact/blast, each entry carrying direction/distance from the start) and the same Report JSON shape the qik-mcp server exposes via the axon_* tools."
+  }
+}

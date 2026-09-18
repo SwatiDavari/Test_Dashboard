@@ -1,0 +1,42 @@
+{
+  "skill": "qik-cortex",
+  "version": "2.0",
+  "description": "Qorix quality gate — deterministic (algorithmic) checks plus an agent-applied semantic checklist, both driven by `qik cortex`.",
+  "tool": "qik",
+  "priming": {
+    "description": "Load the active rules into context before writing or reviewing code.",
+    "source": { "exec": "qik cortex dump --kind all" },
+    "inject": "context"
+  },
+  "steps": [
+    {
+      "id": "algorithmic",
+      "label": "Algorithmic rules",
+      "type": "exec",
+      "command": "qik cortex check --kind algo --mcp",
+      "parse": "json",
+      "on_fail": "block",
+      "fail_when": "summary.errors > 0",
+      "description": "Deterministic rule evaluation. Each statement with severity=error blocks."
+    },
+    {
+      "id": "semantic",
+      "label": "Semantic rules",
+      "type": "llm",
+      "rules_source": { "exec": "qik cortex dump --kind llm --mcp" },
+      "parse": "json",
+      "prompt": "For each rule, apply its check_prompt to the changed code (git diff). Answer per rule with PASS, or FAIL plus file:line and reason. Treat any error-severity FAIL as blocking.",
+      "on_fail": "block",
+      "description": "Semantic rules the binary cannot evaluate; the agent applies each rule's check_prompt."
+    }
+  ],
+  "triggers": {
+    "on_demand": true,
+    "pre_edit": false,
+    "pre_commit": true
+  },
+  "output": {
+    "format": "statements",
+    "note": "`qik cortex --mcp` emits the same JSON shape the qik-mcp server exposes."
+  }
+}

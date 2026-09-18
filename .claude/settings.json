@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/qik_first_guard.py\"",
+            "statusMessage": "qik-first guard: checking for a manual needs/.qik sweep...",
+            "type": "command"
+          }
+        ],
+        "matcher": "Grep|Glob|Bash"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/qik_nexus_lifecycle.py\"",
+            "statusMessage": "qik-nexus-lifecycle: checking PI item completion state...",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

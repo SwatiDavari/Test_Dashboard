@@ -1,0 +1,1377 @@
+# (c) Qorix
+# Axon graph rules — structural constraints on the needs graph.
+# Managed via `qik axon learn | forget | ignore`.
+
+[[rule]]
+id = "need-id-type-match"
+kind = "require-type-match"
+why = "The type-prefix segment in the id (before the first __) must equal need_type. A need with type=glob_int but id=comp_req__main__foo is a modelling error that a pure format regex cannot catch."
+from_type = "[a-z]+_[a-z]+"
+severity = "error"
+
+[[rule]]
+id = "tst-verifies-prd-or-sys-only"
+kind = "allows-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Test artifacts (tst_*) may only verify product or mission artifacts (prd_*/sys_*). Cross-verification between enablers (e.g. tst verifying doc) is a modelling error."
+from_type = "^tst_.*"
+link = "verifies"
+to_type = "^(prd|sys)_.*"
+severity = "error"
+
+[[rule]]
+id = "doc-documents-prd-or-sys-only"
+kind = "allows-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Documentation artifacts (doc_*) may only document product or mission artifacts (prd_*/sys_*). A doc artifact documenting another doc artifact or a tst artifact is a modelling error."
+from_type = "^doc_.*"
+link = "documents"
+to_type = "^(prd|sys)_.*"
+severity = "error"
+
+[[rule]]
+id = "prd-must-not-documents"
+kind = "forbid-link"
+why = "Product artifacts (prd_*) do not document anything — documentation is the doc_ enabler's responsibility."
+from_type = "^prd_.*"
+link = "documents"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "sys_int-must-not-refine"
+kind = "forbid-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "The sys_int layer is the absolute root of the traceability graph (ISO 15288 Mission Analysis). Refinement flows downward FROM sys_int to every enabler layer — a sys_int refining from prd_/tst_/doc_/saf_/sec_, or from sys_req/sys_arc below it, inverts the graph. One refinement stays legal: sys_int --refines--> sys_int, so the mission level itself can be partitioned into the three mission areas (system / concept / realization) with real edges instead of unlinked roots. The alternation names every non-sys_int registered type explicitly because the Rust regex crate has no lookahead and there is no except_to_id field. sys_req and sys_arc keep their own upward links within the sys_ level."
+from_type = "^sys_int$"
+link = "refines"
+to_type = "^(prd|tst|doc|saf|sec)_.*|^sys_req$|^sys_arc$"
+severity = "error"
+
+[[rule]]
+id = "sys-refines-allows"
+kind = "allows-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Mission-level artifacts (sys_*) are the root of the traceability graph. They must not derive from enabler-specific artifacts — derivation flows downward from sys_* to prd_*/tst_*/doc_*, never upward."
+from_type = "^(prd|tst|doc)_.*"
+link = "refines"
+to_type = "^(sys|prd|tst|doc|glob|feat|comp|unit)_.*|.*_int$|.*_req$|.*_arc$|.*_des$"
+severity = "warning"
+
+[[rule]]
+id = "forbid-any-link-to-retired"
+kind = "forbid-link"
+why = "Any non-retired need must not link to a retired one. Retired needs are no longer normatively valid; any dependency on them is a dangling reference. Scoped to topology = [primary, secondary] (cr-000481): this is a status-ordering check, not an architecture-purity gate, so a peer-topology link (e.g. relates_to) to a retired need is exempt — a kinship reference is not a dependency in the sense this rule guards against. Deliberately explicit rather than relying on any wildcard default — see wildcard_topology_matches in graph_check.rs for why the default itself must stay 'all kinds'."
+from_status = ["draft", "proposed", "approved", "released", "deprecated"]
+to_status = ["retired"]
+topology = ["primary", "secondary"]
+severity = "error"
+
+[[rule]]
+id = "forbid-released-links-to-proposed"
+kind = "forbid-link"
+why = "A released need must not link to a draft or proposed upstream. Being released while your upstream is still under development means the baseline was declared prematurely. Scoped to topology = [primary, secondary] (cr-000481) — a peer-topology link (relates_to) is not a derivation dependency, so status ordering does not apply to it; see forbid-any-link-to-retired's why for the full rationale."
+from_status = ["released"]
+to_status = ["draft", "proposed"]
+topology = ["primary", "secondary"]
+severity = "error"
+
+[[rule]]
+id = "warn-any-link-to-deprecated"
+kind = "forbid-link"
+why = "A non-deprecated, non-retired need links to a deprecated one — the dependency is being phased out. Plan migration before the target is retired. Scoped to topology = [primary, secondary] (cr-000481) — see forbid-any-link-to-retired's why."
+from_status = ["draft", "proposed", "approved", "released"]
+to_status = ["deprecated"]
+topology = ["primary", "secondary"]
+severity = "warning"
+
+[[rule]]
+id = "warn-released-links-to-approved"
+kind = "forbid-link"
+why = "A released need links to an approved (not yet released) upstream. The source was baselined before its dependency was. Review release order. Scoped to topology = [primary, secondary] (cr-000481) — see forbid-any-link-to-retired's why."
+from_status = ["released"]
+to_status = ["approved"]
+topology = ["primary", "secondary"]
+severity = "warning"
+
+[[rule]]
+id = "warn-approved-links-to-proposed"
+kind = "forbid-link"
+why = "An approved need links to a draft or proposed upstream. The need was agreed before its upstream was even stable. Scoped to topology = [primary, secondary] (cr-000481) — see forbid-any-link-to-retired's why."
+from_status = ["approved"]
+to_status = ["draft", "proposed"]
+topology = ["primary", "secondary"]
+severity = "warning"
+
+[[rule]]
+id = "int-must-have-downstream-req"
+kind = "require-link"
+why = "Every released intention must be derived from by at least one requirement or sub-intention; an intention with nothing below it is a specification gap. Exempts sys_int__system__test_mandate by exact id, house-wide, not per-project: a project may determine its own system-of-interest is non-testable and declare tst_ inapplicable directly in this node's own body (see qorix-ee's instance for the pattern) -- for such a project the mandate legitimately IS the end of the chain, not a gap. Most projects still carry the four tst_glob_req__system__* children refining it normally; the exemption only matters for the (rare, explicit) case where a project has none."
+from_type = ".*_int"
+link = "refines"
+to_type = ".*_req|.*_int"
+except_from_id = "^sys_int__system__(test|safety|security)_mandate$"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "req-must-have-downstream-arc"
+kind = "require-link"
+why = "Every released requirement must be fulfilled by at least one architecture element; an unfulfilled requirement is a design gap. Previously exempted doc_comp_req while the doc_ enabler had a second, arc-free realization chain (doc_comp_req->doc_unit_des->doc_unit_imp). That second chain was folded away under cr-000298 (doc_ now follows the same req->arc->des->imp model as prd_/tst_, with doc_unit_des->doc_comp_arc newly required), so doc_ is held to the same standard as every other enabler and the exemption is removed."
+from_type = ".*_req"
+link = "fulfils"
+to_type = ".*_arc"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "req-must-have-downstream-arc-proposed"
+kind = "require-link"
+why = "Every requirement at proposed or approved status should already be paired with an architecture element — an unfulfilled requirement at that stage is a design gap warning, not yet an error."
+from_type = ".*_req"
+link = "fulfils"
+to_type = ".*_arc"
+from_status = ["proposed", "approved"]
+reverse = true
+severity = "warning"
+
+[[rule]]
+id = "arc-must-have-downstream-des"
+kind = "require-link"
+why = "Every released component architecture element must be realised by at least one unit design; an undesigned architecture element is an implementation gap. Exempts doc_comp_arc__realization__mdbook_structure specifically (id renamed 2026-09-08, cr-000502, when this node moved from needs/assemblies/docs/common/ to needs/system/realization/ — the exemption itself is unchanged): it expresses site navigation structure, a parallel concern to the req->unit_des realization chain, not an intermediate step in it. Narrowed from a blanket ^doc_comp_arc__ prefix exemption to this single named instance (cr-000170) so future doc_comp_arc instances are held to the same standard as prd_/tst_, matching prd_'s per-instance exemption style instead of a silent prefix-wide carve-out."
+from_type = "comp_arc"
+link = "fulfils"
+to_type = ".*_des"
+except_from_id = ".*__crate|.*__qik_mcp|^doc_comp_arc__realization__mdbook_structure$"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "glob_arc-must-contain-comp_arc"
+kind = "require-link"
+why = "A released global architecture element (delivery unit) must be the structural parent of at least one component architecture element — an undecomposed glob_arc is a coverage gap. reverse = true checks that at least one comp_arc carries decomposes pointing here; a comp_arc without decomposes is a valid root. Promoted from warning to error (cr-000170). cr-000312: reversed from consists_of to decomposes."
+from_type = "glob_arc"
+link = "decomposes"
+to_type = "comp_arc"
+except_from_id = "^bld_glob_arc__"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "des-must-have-downstream-imp"
+kind = "require-link"
+why = "Every released unit design must be implemented by at least one implementation artifact; an unimplemented design is a coverage gap. Exempts axon's doc_convention design: realized by authoring convention/discipline, not compiled code — no imp can honestly exist for it. Exempts all doc_unit_des: the language-native doc-comment mechanism they name (e.g. Rust //!/// vs Python docstrings) is realized by many untracked source comments, not by mandatory per-instance doc_unit_imp needs — see doc-unit-imp-implements-allows."
+from_type = ".*_des"
+link = "implements"
+to_type = ".*_imp"
+except_from_id = "^prd_unit_des__axon__doc_convention$|^doc_unit_des__"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "need-must-have-status"
+kind = "forbid-match"
+why = "Every need must have a :status: field set to mark its lifecycle maturity. A need without status is invisible to all status-transition and lifecycle rules."
+from_type = ".*"
+from_status = ["none"]
+severity = "error"
+
+[[rule]]
+id = "needs-must-have-body-error"
+kind = "forbid-match"
+why = "cr-000341/cr-000367: a directive whose entire content lives in its title, with nothing following before the closing :::, is a title-only node -- structurally valid (every link resolves, status ordering is legal) but semantically hollow. axon_check validates link structure only; it has no concept of body presence without this rule. Scoped to int/req/arc/des only -- *_imp nodes are code-derived @needs markers with no authored body by construction (see des-must-have-downstream-imp's own exemption reasoning) and must never be flagged here. approved/released/deprecated all imply the content passed a review gate or was baselined, so an empty body at any of those three statuses is a hard error, not a style warning."
+from_type = ".*_(int|req|arc|des)$"
+from_status = ["approved", "released", "deprecated", "retired"]
+require_content = true
+severity = "error"
+
+[[rule]]
+id = "needs-must-have-body-warning"
+kind = "forbid-match"
+why = "cr-000341/cr-000367: same empty-body check as needs-must-have-body-error, at warning severity for draft/proposed -- a node still mid-conversation may legitimately be thin for a moment, but the gap should still surface rather than pass silently."
+from_type = ".*_(int|req|arc|des)$"
+from_status = ["draft", "proposed"]
+require_content = true
+severity = "warning"
+
+[[rule]]
+id = "3d-glob_int-must-refine-sys"
+kind = "require-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Every enabler's global intention must trace to the mission-level intention (sys_int). prd_, doc_, and tst_ (at glob scope only) have global intentions."
+from_type = "^(prd|doc|tst)_glob_int$"
+link = "refines"
+to_type = "^sys_int$"
+from_status = ["approved", "released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "3d-glob_req-must-refine-sys"
+kind = "require-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Every enabler's global requirement must trace to the mission-level requirements (sys_req or sys_int), or to its own enabler's global intention (prd_/doc_/tst_ glob_int), mirroring how feat_req may derive from its own glob_int/feat_int."
+from_type = "^(prd|tst|doc)_glob_req$"
+link = "refines"
+to_type = "^sys_(req|int)$|^(prd|doc|tst)_glob_int$"
+from_status = ["approved", "released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "3d-glob_int-refines-allows"
+kind = "allows-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "A global enabler intention (prd_, doc_, or tst_ at glob scope) may only derive from the mission-level intention."
+from_type = "^(prd|doc|tst)_glob_int$"
+link = "refines"
+to_type = "^sys_int$"
+severity = "error"
+
+[[rule]]
+id = "3d-glob_req-refines-allows"
+kind = "allows-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "A global enabler requirement may only derive from mission-level requirements/intentions or its own enabler's global intention."
+from_type = "^(prd|tst|doc)_glob_req$"
+link = "refines"
+to_type = "^sys_(req|int)$|^(prd|doc|tst)_glob_int$"
+severity = "error"
+
+[[rule]]
+id = "3d-feat_req-must-refine"
+kind = "require-link"
+why = "Every enabler's feature requirement must derive from a global requirement within the same enabler, a feature/global intention (prd_/doc_), or another feat_req acting as an umbrella."
+from_type = "^(prd|tst|doc)_feat_req$"
+link = "refines"
+to_type = "^(prd|tst|doc)_glob_req$|^(prd|doc)_(glob_int|feat_int)$|^tst_glob_int$|^(prd|tst|doc)_feat_req$"
+from_status = ["approved", "released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "prd_feat_req-refines-allows"
+kind = "allows-link"
+why = "Product feature requirements may derive from product-level global requirements, intentions, another prd_feat_req acting as umbrella, or mission-level (sys_*). Cross-enabler derivation is a modelling error."
+from_type = "^prd_feat_req$"
+link = "refines"
+to_type = "^(prd_glob_req|prd_glob_int|prd_feat_int|prd_feat_req|sys_req|sys_int)$"
+severity = "error"
+
+[[rule]]
+id = "tst_feat_req-refines-allows"
+kind = "allows-link"
+why = "Test feature requirements may only derive from test-level global requirements, the test-system intent at glob scope, or mission-level needs."
+from_type = "^tst_feat_req$"
+link = "refines"
+to_type = "^(tst_glob_req|tst_glob_int|sys_req|sys_int)$"
+severity = "error"
+
+[[rule]]
+id = "doc_feat_req-refines-allows"
+kind = "allows-link"
+why = "Documentation feature requirements may only derive from documentation-level global requirements or intentions, or from mission-level (sys_*)."
+from_type = "^doc_feat_req$"
+link = "refines"
+to_type = "^(doc_glob_req|doc_glob_int|doc_feat_int|sys_req|sys_int)$"
+severity = "error"
+
+[[rule]]
+id = "bld_feat_req-refines-allows"
+kind = "allows-link"
+why = "Build feature requirements may only derive from build global requirements (req→req scope crossing), another bld_feat_req as umbrella, or mission-level needs."
+from_type = "^bld_feat_req$"
+link = "refines"
+to_type = "^(bld_glob_req|bld_feat_req|sys_req|sys_int)$"
+severity = "error"
+
+[[rule]]
+id = "3d-comp_req-must-refine"
+kind = "require-link"
+why = "Every enabler's component requirement must derive from a feature requirement, sibling component requirement, or (when no feature owns it, e.g. shared infrastructure) mission-level sys_req — matching the scope of the per-enabler *-comp-req-derived-from-allows companions."
+from_type = "^(prd|tst|doc)_comp_req$"
+link = "refines"
+to_type = "^(prd|tst|doc)_(feat_req|comp_req)$|^sys_req$"
+from_status = ["approved", "released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "3d-feat_req-must-have-refining-comp_req"
+kind = "require-link"
+why = "Every enabler's released feature requirement must decompose into at least one component requirement — reverse companion to 3d-comp_req-must-refine. A feat_req with no downstream comp_req anywhere is a decomposition gap axon_blast cannot see today: blast still terminates cleanly at the feat_req, so a governance-bridge gap looks identical to a correctly-decomposed one (cr-000463)."
+from_type = "^(prd|tst|doc)_feat_req$"
+link = "refines"
+to_type = "^(prd|tst|doc)_comp_req$"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "3d-feat_req-must-have-refining-comp_req-proposed"
+kind = "require-link"
+why = "A feature requirement without a same-enabler component requirement below it is a decomposition gap even at proposed status — warning rather than error before release (cr-000463)."
+from_type = "^(prd|tst|doc)_feat_req$"
+link = "refines"
+to_type = "^(prd|tst|doc)_comp_req$"
+from_status = ["proposed", "approved"]
+reverse = true
+severity = "warning"
+
+[[rule]]
+id = "prd_comp_req-refines-allows"
+kind = "allows-link"
+why = "Product component requirements may only derive from product feature or component requirements. Deriving from a different enabler's needs is a scope mismatch."
+from_type = "^prd_comp_req$"
+link = "refines"
+to_type = "^(prd_feat_req|prd_comp_req|sys_req)$"
+severity = "error"
+
+[[rule]]
+id = "tst_comp_req-refines-allows"
+kind = "allows-link"
+why = "Test component requirements may only derive from test feature or component requirements."
+from_type = "^tst_comp_req$"
+link = "refines"
+to_type = "^(tst_feat_req|tst_comp_req|sys_req)$"
+severity = "error"
+
+[[rule]]
+id = "doc_comp_req-refines-allows"
+kind = "allows-link"
+why = "Documentation component requirements may only derive from documentation feature or component requirements."
+from_type = "^doc_comp_req$"
+link = "refines"
+to_type = "^(doc_feat_req|doc_comp_req|sys_req)$"
+severity = "error"
+
+[[rule]]
+id = "3d-glob_arc-must-fulfil-glob_req"
+kind = "require-link"
+why = "Every enabler's global architecture must fulfil at least one global requirement."
+from_type = "^(prd|tst|doc|bld)_glob_arc$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_glob_req$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "3d-glob_arc-must-fulfil-glob_req-proposed"
+kind = "require-link"
+why = "A global architecture without a global requirement is a design gap even at proposed status — warning rather than error before release."
+from_type = "^(prd|tst|doc|bld)_glob_arc$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_glob_req$"
+from_status = ["proposed", "approved"]
+severity = "warning"
+
+[[rule]]
+id = "3d-feat_arc-must-fulfil-feat_req"
+kind = "require-link"
+why = "Every enabler's feature architecture must fulfil at least one feature requirement."
+from_type = "^(prd|tst|doc|bld)_feat_arc$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_feat_req$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "3d-feat_arc-must-fulfil-feat_req-proposed"
+kind = "require-link"
+why = "A feature architecture without a feature requirement is a design gap even at proposed status — warning rather than error before release."
+from_type = "^(prd|tst|doc|bld)_feat_arc$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_feat_req$"
+from_status = ["proposed", "approved"]
+severity = "warning"
+
+[[rule]]
+id = "3d-comp_arc-must-fulfil-comp_req"
+kind = "require-link"
+why = "Every enabler's component architecture must fulfil at least one component requirement."
+from_type = "^(prd|tst|doc|bld)_comp_arc$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_comp_req$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "3d-comp_arc-must-fulfil-comp_req-proposed"
+kind = "require-link"
+why = "A component architecture without a component requirement is a design gap even at proposed status — warning rather than error before release."
+from_type = "^(prd|tst|doc|bld)_comp_arc$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_comp_req$"
+from_status = ["proposed", "approved"]
+severity = "warning"
+
+[[rule]]
+id = "3d-glob_req-must-have-fulfilling-glob_arc"
+kind = "require-link"
+why = """Every enabler's global requirement must be fulfilled by at least one global architecture element at the SAME scope — reverse companion to 3d-glob_arc-must-fulfil-glob_req, closing the level-matching gap the generic req-must-have-downstream-arc rule cannot see (its to_type=".*_arc" accepts any scope)."""
+from_type = "^(prd|tst|doc|bld)_glob_req$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_glob_arc$"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "3d-glob_req-must-have-fulfilling-glob_arc-proposed"
+kind = "require-link"
+why = "A global requirement without a same-scope global architecture is a design gap even at proposed status — warning rather than error before release."
+from_type = "^(prd|tst|doc|bld)_glob_req$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_glob_arc$"
+from_status = ["proposed", "approved"]
+reverse = true
+severity = "warning"
+
+[[rule]]
+id = "3d-feat_req-must-have-fulfilling-feat_arc"
+kind = "require-link"
+why = "Every enabler's feature requirement must be fulfilled by at least one feature architecture element at the SAME scope — reverse companion to 3d-feat_arc-must-fulfil-feat_req."
+from_type = "^(prd|tst|doc|bld)_feat_req$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_feat_arc$"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "3d-feat_req-must-have-fulfilling-feat_arc-proposed"
+kind = "require-link"
+why = "A feature requirement without a same-scope feature architecture is a design gap even at proposed status — warning rather than error before release."
+from_type = "^(prd|tst|doc|bld)_feat_req$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_feat_arc$"
+from_status = ["proposed", "approved"]
+reverse = true
+severity = "warning"
+
+[[rule]]
+id = "3d-comp_req-must-have-fulfilling-comp_arc"
+kind = "require-link"
+why = "Every enabler's component requirement must be fulfilled by at least one component architecture element at the SAME scope — reverse companion to 3d-comp_arc-must-fulfil-comp_req."
+from_type = "^(prd|tst|doc|bld)_comp_req$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_comp_arc$"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "3d-comp_req-must-have-fulfilling-comp_arc-proposed"
+kind = "require-link"
+why = "A component requirement without a same-scope component architecture is a design gap even at proposed status — warning rather than error before release."
+from_type = "^(prd|tst|doc|bld)_comp_req$"
+link = "fulfils"
+to_type = "^(prd|tst|doc|bld)_comp_arc$"
+from_status = ["proposed", "approved"]
+reverse = true
+severity = "warning"
+
+[[rule]]
+id = "prd_feat_arc-fulfils-allows"
+kind = "allows-link"
+why = "Product feature architecture may only fulfil product feature requirements."
+from_type = "^prd_feat_arc$"
+link = "fulfils"
+to_type = "^prd_feat_req$"
+severity = "error"
+
+[[rule]]
+id = "prd_comp_arc-fulfils-allows"
+kind = "allows-link"
+why = "Product component architecture may only fulfil product component requirements."
+from_type = "^prd_comp_arc$"
+link = "fulfils"
+to_type = "^prd_comp_req$"
+severity = "error"
+
+[[rule]]
+id = "tst_feat_arc-fulfils-allows"
+kind = "allows-link"
+why = "Test feature architecture may only fulfil test feature requirements."
+from_type = "^tst_feat_arc$"
+link = "fulfils"
+to_type = "^tst_feat_req$"
+severity = "error"
+
+[[rule]]
+id = "tst_comp_arc-fulfils-allows"
+kind = "allows-link"
+why = "Test component architecture may only fulfil test component requirements."
+from_type = "^tst_comp_arc$"
+link = "fulfils"
+to_type = "^tst_comp_req$"
+severity = "error"
+
+[[rule]]
+id = "doc_comp_arc-fulfils-allows"
+kind = "allows-link"
+why = "Documentation component architecture (structure — e.g. an mdBook's chapter/cross-reference organization) may only fulfil documentation component requirements."
+from_type = "^doc_comp_arc$"
+link = "fulfils"
+to_type = "^doc_comp_req$"
+severity = "error"
+
+[[rule]]
+id = "doc_feat_arc-fulfils-allows"
+kind = "allows-link"
+why = "Documentation feature architecture may only fulfil documentation feature requirements."
+from_type = "^doc_feat_arc$"
+link = "fulfils"
+to_type = "^doc_feat_req$"
+severity = "error"
+
+[[rule]]
+id = "prd_unit_des-must-fulfil-comp_arc"
+kind = "require-link"
+why = "Every product unit design must fulfil a product component architecture element."
+from_type = "^prd_unit_des$"
+link = "fulfils"
+to_type = "^prd_comp_arc$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "prd_unit_des-fulfils-allows"
+kind = "allows-link"
+why = "Product unit designs may only fulfil product component architecture elements."
+from_type = "^prd_unit_des$"
+link = "fulfils"
+to_type = "^prd_comp_arc$"
+severity = "error"
+
+[[rule]]
+id = "prd_unit_des-must-implement-comp_req"
+kind = "require-link"
+why = "Every product unit design must directly implement at least one product component requirement — from the moment it exists, not only once released. The arc path (unit_des fulfils comp_arc fulfils comp_req) is the architectural side-branch; the primary traceability chain for focused blast/impact queries is the direct implements link, and arc is frequently a diagram-carrying collector node that makes blast queries diffuse and imprecise (a 'spreader' node) if it is the only path. Widened from released/deprecated-only to every status except retired (cr-000317 follow-up): a unit_des with no comp_req is a modelling gap at the moment it is drafted, not just at release."
+from_type = "^prd_unit_des$"
+link = "implements"
+to_type = "^(prd_comp_req|sys_req)$"
+from_status = ["draft", "proposed", "approved", "released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "prd_comp_req-must-be-implemented-by-unit_des"
+kind = "require-link"
+why = "Every released product component requirement must be directly implemented by at least one product unit design (inverse of prd_unit_des-must-implement-comp_req). Without this reverse rule a comp_req that nothing implements is invisible to the forward rule — an orphaned link port that axon check would miss. Left at released/deprecated (unlike the forward rule): design naturally lags requirements, so a freshly-drafted comp_req without a unit_des yet is expected, not a gap."
+from_type = "^prd_comp_req$"
+link = "implements"
+to_type = "^prd_unit_des$"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "prd_unit_des-implements-allows"
+kind = "allows-link"
+why = "Product unit designs may only implement product component requirements or mission-level system requirements. Implementing a unit_des (which is the unit_imp role) or an arc would invert the metamodel chain."
+from_type = "^prd_unit_des$"
+link = "implements"
+to_type = "^(prd_comp_req|sys_req)$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "prd_unit_imp-must-implement-unit_des"
+kind = "require-link"
+why = "Every product unit implementation must implement a product unit design."
+from_type = "^prd_unit_imp$"
+link = "implements"
+to_type = "^prd_unit_des$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "prd_unit_imp-implements-allows"
+kind = "allows-link"
+why = "Product unit implementations may only implement product unit designs."
+from_type = "^prd_unit_imp$"
+link = "implements"
+to_type = "^prd_unit_des$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "tst_unit_des-must-fulfil-comp_arc"
+kind = "require-link"
+why = "Every test unit design must fulfil a test component architecture element."
+from_type = "^tst_unit_des$"
+link = "fulfils"
+to_type = "^tst_comp_arc$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "tst_unit_des-must-implement-comp_req"
+kind = "require-link"
+why = "Every test unit design must directly implement at least one test component requirement, from the moment it exists, not only once released — mirrors prd_unit_des-must-implement-comp_req/doc_unit_des-must-implement. Previously tst_ only had the allows-link companion below restricting the target, with nothing requiring the link to exist at all; the arc path (unit_des fulfils comp_arc fulfils comp_req) is the architectural side-branch and, being a frequent diagram-carrying collector node, is too imprecise a sole path for focused blast/impact queries (cr-000317 follow-up)."
+from_type = "^tst_unit_des$"
+link = "implements"
+to_type = "^tst_comp_req$"
+from_status = ["draft", "proposed", "approved", "released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "tst_unit_des-implements-comp_req-allows"
+kind = "allows-link"
+why = "tst_unit_des may only implement a tst_comp_req directly (mirroring prd_unit_des-implements-allows) — the direct implements link is the focused traceability chain for blast/impact queries, alongside the arc side-branch (tst_unit_des-must-fulfil-comp_arc). Added alongside tst_comp_req-must-be-implemented-by-unit_des (cr-000170) to give tst_ the same comp_req<->unit_des safety net prd_ already has; tst_unit_des-must-implement-comp_req (cr-000317 follow-up) makes the link mandatory rather than merely allowed."
+from_type = "^tst_unit_des$"
+link = "implements"
+to_type = "^tst_comp_req$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "tst_comp_req-must-be-implemented-by-unit_des"
+kind = "require-link"
+why = "Every released test component requirement must be directly implemented by at least one test unit design — mirrors prd_comp_req-must-be-implemented-by-unit_des and doc_comp_req-must-have-downstream-unit_des-or-imp, closing tst_'s missing direct-implements safety net at comp_req level (cr-000170)."
+from_type = "^tst_comp_req$"
+link = "implements"
+to_type = "^tst_unit_des$"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "tst_unit_imp-must-implement-unit_des"
+kind = "require-link"
+why = "Every test unit implementation (test code) must implement a test unit design (test case design)."
+from_type = "^tst_unit_imp$"
+link = "implements"
+to_type = "^tst_unit_des$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "tst_unit_imp-implements-allows"
+kind = "allows-link"
+why = "Test unit implementations may only implement test unit designs."
+from_type = "^tst_unit_imp$"
+link = "implements"
+to_type = "^tst_unit_des$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "doc_unit_imp-must-implement-unit_des"
+kind = "require-link"
+why = "Every documentation unit implementation must implement a documentation unit design — same rule as prd_/tst_/bld_. Individual doc_unit_imp nodes that are explicitly tagged (released) must link to their doc_unit_des; untagged documentation comments/pages have no node and are therefore exempt."
+from_type = "^doc_unit_imp$"
+link = "implements"
+to_type = "^doc_unit_des$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "doc_unit_imp-implements-allows"
+kind = "allows-link"
+why = "Documentation unit implementations may only implement the doc_unit_des that named their realization mechanism. The former direct-to-doc_comp_req shortcut (for one-off content with no separate mechanism decision worth naming) was folded away under cr-000298 — doc_ now follows the same layer-at-a-time chain as prd_/tst_. Individual doc_unit_imp instances under a doc_unit_des remain optional per instance; most concrete documentation comments/pages are never individually tagged at all."
+from_type = "^doc_unit_imp$"
+link = "implements"
+to_type = "^doc_unit_des$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "tst_unit_imp-must-verify-prd"
+kind = "require-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Every test unit implementation must verify at least one product or mission artifact (ISO 15288 §6.4.11 Verification)."
+from_type = "^tst_unit_imp$"
+link = "verifies"
+to_type = "^(prd|sys)_.*"
+from_status = ["released", "deprecated"]
+severity = "warning"
+
+[[rule]]
+id = "doc_unit_imp-must-document-prd"
+kind = "require-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Every documentation unit implementation must document at least one product or mission artifact (ISO 15288 §6.4.14 Technical Documentation)."
+from_type = "^doc_unit_imp$"
+link = "documents"
+to_type = "^(prd|sys)_.*"
+from_status = ["released", "deprecated"]
+severity = "warning"
+
+[[rule]]
+id = "doc_unit_des-must-implement"
+kind = "require-link"
+why = "Every doc_unit_des must implement a documentation component requirement, from the moment it exists, not only once released. An unanchored tailoring decision (e.g. 'we use rustdoc for this crate') cannot be traced to what it satisfies. Widened from released/deprecated-only to every status except retired (cr-000317 follow-up), matching prd_unit_des-must-implement-comp_req."
+from_type = "^doc_unit_des$"
+link = "implements"
+to_type = "^doc_comp_req$"
+from_status = ["draft", "proposed", "approved", "released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "doc_unit_des-implements-allows"
+kind = "allows-link"
+why = "doc_unit_des may only implement documentation component requirements. Implementing product artifacts or architecture directly skips the documentation requirement layer."
+from_type = "^doc_unit_des$"
+link = "implements"
+to_type = "^doc_comp_req$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "doc_unit_des-must-fulfil-comp_arc"
+kind = "require-link"
+why = "Every documentation unit design must fulfil a documentation component architecture element (added under cr-000298 alongside the doc_ enabler's move onto the standard req->arc->des->imp chain)."
+from_type = "^doc_unit_des$"
+link = "fulfils"
+to_type = "^doc_comp_arc$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "doc_unit_des-fulfils-allows"
+kind = "allows-link"
+why = "Documentation unit designs may only fulfil documentation component architecture elements."
+from_type = "^doc_unit_des$"
+link = "fulfils"
+to_type = "^doc_comp_arc$"
+severity = "error"
+
+[[rule]]
+id = "doc_comp_req-must-have-downstream-unit_des"
+kind = "require-link"
+why = "Every released doc_comp_req must be directly implemented by at least one doc_unit_des — the same direct-implements safety-net every prd_comp_req carries (see prd_comp_req-must-be-implemented-by-unit_des), alongside the primary doc_comp_arc chain. The former doc_unit_imp alternative (for one-off content with nothing distinct to name as the mechanism) was folded away under cr-000298: doc_ now follows the same layer-at-a-time model as prd_/tst_, with no arc-free shortcut. Exempts comp-reqs realized structurally via a fulfilling doc_comp_arc instead (e.g. site_structure) — those are covered by the arc chain, not this one. (id renamed 2026-09-08, cr-000502, when this node moved from needs/assemblies/docs/common/ to needs/system/realization/ — the exemption itself is unchanged.)"
+from_type = "^doc_comp_req$"
+link = "implements"
+to_type = "^doc_unit_des$"
+except_from_id = "^doc_comp_req__realization__site_structure$"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "3d-doc-req-int-must-not-document"
+kind = "forbid-link"
+why = "Documentation requirements (doc_*_req) and intentions (doc_*_int) specify what must be documented — they do not themselves document product artifacts. Only doc_ arc, des, and imp types use the documents link."
+from_type = "^doc_(glob|feat)_int$|^doc_(glob|feat|comp)_req$"
+link = "documents"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "prd_glob_arc-fulfils-allows"
+kind = "allows-link"
+why = "Product global architecture may only fulfil product global requirements."
+from_type = "^prd_glob_arc$"
+link = "fulfils"
+to_type = "^prd_glob_req$"
+severity = "error"
+
+[[rule]]
+id = "tst_glob_arc-fulfils-allows"
+kind = "allows-link"
+why = "Test global architecture may only fulfil test global requirements."
+from_type = "^tst_glob_arc$"
+link = "fulfils"
+to_type = "^tst_glob_req$"
+severity = "error"
+
+[[rule]]
+id = "doc_glob_arc-fulfils-allows"
+kind = "allows-link"
+why = "Documentation global architecture may only fulfil documentation global requirements."
+from_type = "^doc_glob_arc$"
+link = "fulfils"
+to_type = "^doc_glob_req$"
+severity = "error"
+
+[[rule]]
+id = "bld_glob_arc-fulfils-allows"
+kind = "allows-link"
+why = "Build global architecture may only fulfil build global requirements."
+from_type = "^bld_glob_arc$"
+link = "fulfils"
+to_type = "^bld_glob_req$"
+severity = "error"
+
+[[rule]]
+id = "bld_feat_arc-fulfils-allows"
+kind = "allows-link"
+why = "Build feature architecture may only fulfil build feature requirements."
+from_type = "^bld_feat_arc$"
+link = "fulfils"
+to_type = "^bld_feat_req$"
+severity = "error"
+
+[[rule]]
+id = "bld_comp_arc-fulfils-allows"
+kind = "allows-link"
+why = "Build component architecture may only fulfil build component requirements."
+from_type = "^bld_comp_arc$"
+link = "fulfils"
+to_type = "^bld_comp_req$"
+severity = "error"
+
+[[rule]]
+id = "doc_glob_arc-documents-allows"
+kind = "allows-link"
+why = "doc_glob_arc optionally documents the mission or product global architecture it describes."
+from_type = "^doc_glob_arc$"
+link = "documents"
+to_type = "^(prd_glob_arc|sys_arc)$"
+severity = "error"
+
+[[rule]]
+id = "doc_feat_arc-documents-allows"
+kind = "allows-link"
+why = "doc_feat_arc optionally documents the product feature architecture or requirements it describes."
+from_type = "^doc_feat_arc$"
+link = "documents"
+to_type = "^(prd_feat_arc|prd_feat_req|sys_arc|sys_req)$"
+severity = "error"
+
+[[rule]]
+id = "3d-tst-must-not-document"
+kind = "forbid-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Test artifacts (tst_*) do not document product artifacts — documentation is the doc_ enabler's responsibility."
+from_type = "^tst_.*"
+link = "documents"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "3d-sys-must-not-document"
+kind = "forbid-link"
+why = "Mission artifacts (sys_*) are the root of the trace graph; they are documented by the doc_ enabler, never the other way around."
+from_type = "^sys_.*"
+link = "documents"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "3d-int-must-not-fulfil"
+kind = "forbid-link"
+why = "Intentions (int) are the root of the traceability graph — they express WHY. They do not fulfil requirements or architecture; requirements and architecture fulfil them."
+from_type = "^(prd|doc)_(glob|feat)_int$|^sys_int$"
+link = "fulfils"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "3d-int-must-not-implement"
+kind = "forbid-link"
+why = "Intentions (int) are never directly implemented. The implements link runs from unit_imp to unit_des."
+from_type = "^(prd|doc)_(glob|feat)_int$|^sys_int$"
+link = "implements"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "3d-unit_des-must-not-refine"
+kind = "forbid-link"
+why = "Unit designs (unit_des) fulfil/implement their component's architecture or requirement. They do not derive from anything — derivation is the requirement/intention chain. Covers doc_unit_des too: it implements doc_comp_req directly (see doc-unit-des-must-implement), it does not derive from anything either."
+from_type = "^(prd|tst|doc)_unit_des$"
+link = "refines"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "3d-unit_imp-must-not-refine"
+kind = "forbid-link"
+why = "Unit implementations (unit_imp) implement unit designs. They do not derive from anything."
+from_type = "^(prd|tst)_unit_imp$|^doc_unit_imp$"
+link = "refines"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "3d-unit_imp-must-not-fulfil"
+kind = "forbid-link"
+why = "Unit implementations (unit_imp) implement unit designs via the implements link. Using fulfils from an implementation inverts the layer semantics."
+from_type = "^(prd|tst)_unit_imp$|^doc_unit_imp$"
+link = "fulfils"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "3d-tst-non-leaf-must-not-verify"
+kind = "forbid-link"
+why = "Only test unit and comp artifacts may verify product artifacts. glob and feat scope test documents specify strategy and plan — they name no individually-addressable product artifact to verify. comp scope gains verifies in cr-000258 (ISO 15288 §6.4.6, component verification); feat scope gains validates instead (ISO 15288 §6.4.9, feature validation)."
+from_type = "^tst_(glob|feat)_(req|arc)$"
+link = "verifies"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "tst-validates-prd-feat-or-sys-only"
+kind = "allows-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Test feat artifacts (tst_feat_req, tst_feat_arc) may only validate product feature requirements or mission-level needs (prd_feat_req/sys_*). Validation (ISO 15288 §6.4.9) is stakeholder-facing and requires a stakeholder-level target — not a component or unit artifact."
+from_type = "^tst_feat_(req|arc)$"
+link = "validates"
+to_type = "^(prd_feat_req|sys_).*"
+severity = "error"
+
+[[rule]]
+id = "tst-comp-verifies-prd-comp-only"
+kind = "allows-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Test comp artifacts (tst_comp_req, tst_comp_arc) may only verify product component requirements (prd_comp_req). Component-scope verification (ISO 15288 §6.4.6) checks that specified component requirements are met — it targets prd_comp_req, not feat or unit artifacts."
+from_type = "^tst_comp_(req|arc)$"
+link = "verifies"
+to_type = "^prd_comp_req$"
+severity = "error"
+
+[[rule]]
+id = "tst-feat-req-must-validate-prd"
+kind = "require-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Every released test feature requirement must name what stakeholder feature it validates (ISO 15288 §6.4.9). A test plan without a validates link to a prd_feat_req or sys_* need describes no concrete validation target."
+from_type = "^tst_feat_req$"
+link = "validates"
+to_type = "^(prd_feat_req|sys_).*"
+from_status = ["released", "deprecated"]
+severity = "warning"
+
+[[rule]]
+id = "tst-comp-req-must-verify-prd-comp"
+kind = "require-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Every released test component requirement must name the product component requirement it verifies (ISO 15288 §6.4.6). A component test design specification with no verifies link is unanchored — it cannot demonstrate component-level coverage."
+from_type = "^tst_comp_req$"
+link = "verifies"
+to_type = "^prd_comp_req$"
+from_status = ["released", "deprecated"]
+severity = "warning"
+
+[[rule]]
+id = "3d-tst_unit_des-must-verify-prd"
+kind = "require-link"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Every test case design (tst_unit_des) must specify what product artifact it verifies. A test case without a verifies link is an untargeted test — it cannot demonstrate coverage."
+from_type = "^tst_unit_des$"
+link = "verifies"
+to_type = "^(prd|sys)_.*"
+from_status = ["released", "deprecated"]
+severity = "warning"
+
+[[rule]]
+id = "safety-artifact-must-have-incoming-mitigates"
+kind = "require-link"
+why = "A safety analysis artifact (DFA, FMEA, threat scenario, etc.) must be mitigated by at least one requirement or assumption-of-use. The mitigates link goes FROM requirement TO safety artifact. This rule checks for that incoming link on the safety side."
+from_type = "^(prd|tst|doc)_(feat|comp|glob)_saf"
+link = "mitigates"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "off"
+
+[[rule]]
+id = "sys_req-must-refine-sys_int"
+kind = "require-link"
+why = "Every sys_req must derive from the mission-level sys_int — closes the self-referential gap at the sys_ level itself (every other enabler already requires its own req-derives-from-int chain; sys_ was missing the equivalent for its own req layer). Part of cr-000128."
+from_type = "^sys_req$"
+link = "refines"
+to_type = "^sys_int$"
+severity = "error"
+
+[[rule]]
+id = "sys_arc-must-fulfil-sys_req"
+kind = "require-link"
+why = "Every sys_arc must fulfil at least one sys_req — mirrors req-must-have-downstream-arc for the sys_ level itself, which had no self-referential arc-fulfils-req rule yet. Part of cr-000128."
+from_type = "^sys_arc$"
+link = "fulfils"
+to_type = "^sys_req$"
+severity = "error"
+
+[[rule]]
+id = "sys_req-must-have-fulfilling-sys_arc"
+kind = "require-link"
+why = """Every sys_req must be fulfilled by at least one sys_arc — reverse companion to sys_arc-must-fulfil-sys_req, closing the same level-matching gap the generic req-must-have-downstream-arc rule cannot see at the sys_ level (its to_type=".*_arc" accepts any scope, so a prd_glob_arc could silently satisfy a sys_req's coverage check). from_status added (cr-000428): the rule previously had no status scoping at all, unlike every analogous must-have-fulfilling-arc rule in this file — an oversight that made it structurally impossible for any sys_req to ever reach retired, since forbid-any-link-to-retired forbids the fulfilling sys_arc from linking to it once retired, and this rule required that link at every status including retired. Scoped to released/deprecated, matching req-must-have-downstream-arc."""
+from_type = "^sys_req$"
+link = "fulfils"
+to_type = "^sys_arc$"
+from_status = ["released", "deprecated"]
+reverse = true
+severity = "error"
+
+[[rule]]
+id = "sys_req-must-have-fulfilling-sys_arc-proposed"
+kind = "require-link"
+why = "A sys_req without a fulfilling sys_arc is a design gap even at proposed status — warning rather than error before release. Companion to sys_req-must-have-fulfilling-sys_arc (cr-000428), mirroring req-must-have-downstream-arc-proposed."
+from_type = "^sys_req$"
+link = "fulfils"
+to_type = "^sys_arc$"
+from_status = ["proposed", "approved"]
+reverse = true
+severity = "warning"
+
+[[rule]]
+id = "need-id-naming"
+kind = "require-format"
+why = "Every compound-type need id must follow the 3D schema {enabler}_{scope}_{layer}__{module}__{name} (e.g. prd_feat_arc__nexus__main). sys_ is the mission level and has NO scope qualifier — only sys_int/sys_req/sys_arc are valid, never sys_glob_*/sys_feat_*/etc. (prd|tst|doc|saf|sec|bld)_comp (bare, no layer) is the S-CORE Component scope object — comp_arc belongs_to it, comp_req satisfies it. saf_/sec_ (cr-000141) have no int layer and no unit scope — only glob/feat req+arc and comp req+arc are valid; the legacy 2D saf/sec/aou layer-suffix shape is retired (aou is a saf_*_req body-shape convention now, per sys_req__concept__aou_body_shape, not an id-schema token). bld_ (cr-000065) follows the full prd_ scope pyramid (glob/feat/comp/unit) with all layer points valid per sys_req__concept__bld_enabler. During migration the legacy 2D format {scope}_{layer}__{module}__{name} is also accepted for pre-existing enablers."
+id_pattern = "^((prd|doc|bld)_(glob|feat|comp|unit)_(int|req|arc|des|imp)|tst_(glob_(int|req|arc)|(feat|comp)_(req|arc)|unit_(des|imp))|sys_(int|req|arc)|(prd|tst|doc|saf|sec|bld)_comp|(saf|sec)_(glob|feat)_(req|arc)|(saf|sec)_comp_(req|arc)|(glob|feat|comp|unit)_(int|req|arc|des|imp|tst|doc))__[a-z][a-z0-9_]+__[a-z0-9_]+$"
+severity = "warning"
+
+[[rule]]
+id = "saf_glob_req-must-refine"
+kind = "require-link"
+why = "Every saf_glob_req must trace to mission-level sys_req/sys_int — saf_ has no int layer of its own (sys_req__concept__saf_enablers, cr-000141)."
+from_type = "^saf_glob_req$"
+link = "refines"
+to_type = "^sys_(req|int)$"
+severity = "error"
+
+[[rule]]
+id = "saf_feat_req-must-refine"
+kind = "require-link"
+why = "Every saf_feat_req must derive from a saf_glob_req or mission-level sys_req/sys_int (cr-000141)."
+from_type = "^saf_feat_req$"
+link = "refines"
+to_type = "^saf_glob_req$|^sys_(req|int)$"
+severity = "error"
+
+[[rule]]
+id = "saf_comp_req-must-refine"
+kind = "require-link"
+why = "Every saf_comp_req must derive from a saf_feat_req, sibling saf_comp_req, or (shared infrastructure with no owning feature) mission-level sys_req (cr-000141)."
+from_type = "^saf_comp_req$"
+link = "refines"
+to_type = "^saf_feat_req$|^saf_comp_req$|^sys_req$"
+severity = "error"
+
+[[rule]]
+id = "saf_glob_arc-must-fulfil"
+kind = "require-link"
+why = "Every saf_glob_arc must fulfil a saf_glob_req (cr-000141)."
+from_type = "^saf_glob_arc$"
+link = "fulfils"
+to_type = "^saf_glob_req$"
+severity = "error"
+
+[[rule]]
+id = "saf_feat_arc-must-fulfil"
+kind = "require-link"
+why = "Every saf_feat_arc must fulfil a saf_feat_req (cr-000141)."
+from_type = "^saf_feat_arc$"
+link = "fulfils"
+to_type = "^saf_feat_req$"
+severity = "error"
+
+[[rule]]
+id = "saf_comp_arc-must-fulfil"
+kind = "require-link"
+why = "Every saf_comp_arc must fulfil a saf_comp_req (cr-000141)."
+from_type = "^saf_comp_arc$"
+link = "fulfils"
+to_type = "^saf_comp_req$"
+severity = "error"
+
+[[rule]]
+id = "sec_glob_req-must-refine"
+kind = "require-link"
+why = "Every sec_glob_req must trace to mission-level sys_req/sys_int — sec_ has no int layer of its own (sys_req__concept__sec_enablers, cr-000141)."
+from_type = "^sec_glob_req$"
+link = "refines"
+to_type = "^sys_(req|int)$"
+severity = "error"
+
+[[rule]]
+id = "sec_feat_req-must-refine"
+kind = "require-link"
+why = "Every sec_feat_req must derive from a sec_glob_req or mission-level sys_req/sys_int (cr-000141)."
+from_type = "^sec_feat_req$"
+link = "refines"
+to_type = "^sec_glob_req$|^sys_(req|int)$"
+severity = "error"
+
+[[rule]]
+id = "sec_comp_req-must-refine"
+kind = "require-link"
+why = "Every sec_comp_req must derive from a sec_feat_req, sibling sec_comp_req, or (shared infrastructure with no owning feature) mission-level sys_req (cr-000141)."
+from_type = "^sec_comp_req$"
+link = "refines"
+to_type = "^sec_feat_req$|^sec_comp_req$|^sys_req$"
+severity = "error"
+
+[[rule]]
+id = "sec_glob_arc-must-fulfil"
+kind = "require-link"
+why = "Every sec_glob_arc must fulfil a sec_glob_req (cr-000141)."
+from_type = "^sec_glob_arc$"
+link = "fulfils"
+to_type = "^sec_glob_req$"
+severity = "error"
+
+[[rule]]
+id = "sec_feat_arc-must-fulfil"
+kind = "require-link"
+why = "Every sec_feat_arc must fulfil a sec_feat_req (cr-000141)."
+from_type = "^sec_feat_arc$"
+link = "fulfils"
+to_type = "^sec_feat_req$"
+severity = "error"
+
+[[rule]]
+id = "sec_comp_arc-must-fulfil"
+kind = "require-link"
+why = "Every sec_comp_arc must fulfil a sec_comp_req (cr-000141)."
+from_type = "^sec_comp_arc$"
+link = "fulfils"
+to_type = "^sec_comp_req$"
+severity = "error"
+
+[[rule]]
+id = "saf_arc-must-have-incoming-mitigates"
+kind = "require-link"
+why = "SUPERSEDED: mitigates runs prd_req->saf_req, not saf_req->saf_arc (corrected during qik-thalam-critique review of cr-000141). saf_arc's only requirement is the standard fulfils chain to saf_req (saf_*_arc-must-fulfil). Kept at severity=off rather than deleted, mirroring how the original safety-artifact-must-have-incoming-mitigates stub was retired."
+from_type = "^saf_(glob|feat|comp)_arc$"
+link = "mitigates"
+to_type = "^saf_(glob|feat|comp)_req$"
+severity = "off"
+
+[[rule]]
+id = "sec_arc-must-have-incoming-mitigates"
+kind = "require-link"
+why = "SUPERSEDED: mitigates runs prd_req->sec_req, not sec_req->sec_arc (corrected during qik-thalam-critique review of cr-000141). sec_arc's only requirement is the standard fulfils chain to sec_req (sec_*_arc-must-fulfil)."
+from_type = "^sec_(glob|feat|comp)_arc$"
+link = "mitigates"
+to_type = "^sec_(glob|feat|comp)_req$"
+severity = "off"
+
+[[rule]]
+id = "saf_req-must-have-incoming-mitigates"
+kind = "require-link"
+why = "Every saf_ requirement (safety requirement, including AoU-shaped ones) must be mitigated by at least one ordinary product requirement — the concrete technical realization that actually addresses the safety concern. Corrected shape per user decision during cr-000141 review: mitigates runs prd_req->saf_req, never saf_req->saf_arc."
+from_type = "^saf_(glob|feat|comp)_req$"
+link = "mitigates"
+to_type = "^prd_(glob|feat|comp)_req$"
+severity = "error"
+
+[[rule]]
+id = "sec_req-must-have-incoming-mitigates"
+kind = "require-link"
+why = "Every sec_ requirement (security requirement) must be mitigated by at least one ordinary product requirement — the concrete technical realization that actually addresses the security concern. Same shape as saf_req-must-have-incoming-mitigates."
+from_type = "^sec_(glob|feat|comp)_req$"
+link = "mitigates"
+to_type = "^prd_(glob|feat|comp)_req$"
+severity = "error"
+
+[[rule]]
+id = "saf_comp-must-belong-to-prd_comp"
+kind = "require-link"
+why = "A saf_comp scope object is the S-CORE Dependable_Element marker on an existing product component (sys_arc__concept__saf_sec_dependable_element, cr-000141) — it must name which prd_comp it annotates, or the graph cannot answer which product component a given safety analysis concerns."
+from_type = "^saf_comp$"
+link = "belongs_to"
+to_type = "^prd_comp$"
+severity = "warning"
+
+[[rule]]
+id = "sec_comp-must-belong-to-prd_comp"
+kind = "require-link"
+why = "A sec_comp scope object is the S-CORE Dependable_Element marker on an existing product component (sys_arc__concept__saf_sec_dependable_element, cr-000141) — it must name which prd_comp it annotates."
+from_type = "^sec_comp$"
+link = "belongs_to"
+to_type = "^prd_comp$"
+severity = "warning"
+
+[[rule]]
+id = "tst_comp-must-belong-to-prd_comp"
+kind = "require-link"
+why = "A tst_comp scope object is the structural anchor for one test module, parallel to prd_comp (sys_req__concept__enabler_tst). It must name which prd_comp it tests, or the graph cannot answer which product component a given test module covers."
+from_type = "^tst_comp$"
+link = "belongs_to"
+to_type = "^prd_comp$"
+severity = "warning"
+
+[[rule]]
+id = "saf_comp_req-must-be-implemented-by-unit_des"
+kind = "require-link"
+why = "Closes the unit-level traceability gap flagged by qik-thalam-critique: saf_ has no unit scope of its own, relying on the existing prd_unit_des chain (sys_req__concept__saf_enablers, cr-000141) — this rule makes that reliance real instead of merely asserted, mirroring prd_comp_req-must-be-implemented-by-unit_des."
+from_type = "^saf_comp_req$"
+link = "implements"
+to_type = "^prd_unit_des$"
+severity = "error"
+
+[[rule]]
+id = "sec_comp_req-must-be-implemented-by-unit_des"
+kind = "require-link"
+why = "Closes the unit-level traceability gap flagged by qik-thalam-critique: sec_ has no unit scope of its own, relying on the existing prd_unit_des chain (sys_req__concept__sec_enablers, cr-000141) — mirrors saf_comp_req-must-be-implemented-by-unit_des."
+from_type = "^sec_comp_req$"
+link = "implements"
+to_type = "^prd_unit_des$"
+severity = "error"
+
+[[rule]]
+id = "3d-arc-must-not-refine"
+kind = "forbid-link"
+why = 'Architecture elements (arc) fulfil requirements — they do not refine anything. refines is the requirement/intention chain; fulfils is the architecture chain. Extended to saf_/sec_ (cr-000141) to realize their "peers of prd_/tst_/doc_" claim.'
+from_type = "^(prd|tst|doc|saf|sec)_(glob|feat|comp)_arc$|^sys_arc$"
+link = "refines"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "3d-arc-must-not-implement"
+kind = "forbid-link"
+why = "Architecture elements (arc) are not implemented directly. The implements link runs from unit_imp to unit_des, not from or to architecture. Extended to saf_/sec_ (cr-000141)."
+from_type = "^(prd|tst|doc|saf|sec)_(glob|feat|comp)_arc$|^sys_arc$"
+link = "implements"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "3d-req-must-not-fulfil"
+kind = "forbid-link"
+why = "Requirements (req) derive from higher-level requirements or intentions. The fulfils link goes FROM architecture TO requirements — not from requirements. Extended to saf_/sec_ (cr-000141)."
+from_type = "^(prd|tst|doc|saf|sec)_(glob|feat|comp)_req$|^sys_req$"
+link = "fulfils"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "3d-req-must-not-refine-arc"
+kind = "forbid-link"
+why = "Requirements must derive from intentions or higher-level requirements, never from an architecture element. Extended to saf_/sec_ (cr-000141)."
+from_type = "^(prd|tst|doc|saf|sec)_(glob|feat|comp)_req$|^sys_req$"
+link = "refines"
+to_type = "^(prd|tst|doc|saf|sec)_(glob|feat|comp)_arc$|^sys_arc$"
+severity = "error"
+
+[[rule]]
+id = "3d-only-tst-may-verify"
+kind = "forbid-link"
+why = "Only test artifacts (tst_*) may use the verifies link. Product, documentation, safety, security and mission artifacts do not verify — they are verified. Extended to saf_/sec_ (cr-000141)."
+from_type = "^(prd|doc|saf|sec|sys)_.*"
+link = "verifies"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "saf_sec-must-not-document"
+kind = "forbid-link"
+why = "Safety/security artifacts (saf_*/sec_*) do not document anything — documentation is the doc_ enabler's responsibility, mirroring prd-must-not-documents/3d-tst-must-not-document (cr-000141)."
+from_type = "^(saf|sec)_.*"
+link = "documents"
+to_type = ".*"
+severity = "error"
+
+[[rule]]
+id = "concept-must-not-link-realization"
+kind = "forbid-link"
+ref = "https://www.iso.org/standard/43139.html"
+why = "The concept area is the meta-model qik ships to every adopting project; the realization area is this project own toolsuite. Dependencies point from the instance to the model, never back (ISO/IEC 26550 domain vs. application assets; OMG MOF M2/M1). Omitting link and to_type deliberately: an absent link key makes forbid-link check every link kind, so decomposes and belongs_to authored on the concept side are covered by this one rule."
+from_id = "__concept__"
+to_id = "__realization__"
+severity = "error"
+
+[[rule]]
+id = "realization-must-not-belong-to-concept"
+kind = "forbid-link"
+ref = "https://www.iso.org/standard/43139.html"
+why = "belongs_to inverts the semantic direction: authored on the realization side it asserts that a realization node is a part OF the concept, which is the meta-level violation concept-must-not-link-realization cannot see. forbid-link only ever inspects the authored direction, because the *_back mirrors in needs.json never become links during ingest."
+from_id = "__realization__"
+link = "belongs_to"
+to_id = "__concept__"
+severity = "error"
+
+[[rule]]
+id = "realization-must-not-be-part-of-concept"
+kind = "forbid-link"
+ref = "https://www.iso.org/standard/43139.html"
+why = "Companion to realization-must-not-belong-to-concept: decomposes (cr-000312) goes child→parent; authored on the realization side it asserts that a realization artifact is a constituent part of the concept area, inverting the meta-model hierarchy (ISO/IEC 26550 domain vs. application assets)."
+from_id = "__realization__"
+link = "decomposes"
+to_id = "__concept__"
+severity = "error"
+
+[[rule]]
+id = "sys-id-area-closed-set"
+kind = "require-format"
+ref = "https://www.iso.org/standard/81702.html"
+why = "Segment 2 of a sys_ id names one of exactly three mission areas: mission (why the system exists — intents only), concept (the artifact-graph meta-model), realization (the toolsuite that realizes it). These are mission areas, not components: no prd_comp__realization__* exists. Kept as its own error-severity rule rather than folded into need-id-naming, which sits at warning — folding it in would silently demote the area constraint to a warning."
+from_type = "^sys_"
+id_pattern = "^sys_(int|req|arc)__(mission|concept|realization)__[a-z0-9_]+$"
+severity = "error"
+
+[[rule]]
+id = "sys-arc-must-be-reachable-from-area-root"
+kind = "require-reachable"
+why = "Every sys_arc node must be reachable from its area's architecture root via decomposes edges. A node not reachable from any root is an isolated architecture element invisible to reviewers — exactly the failure class cr-000295 was opened for."
+from_type = "^sys_arc$"
+link = "decomposes"
+severity = "error"
+
+[[rule]]
+id = "bld-glob_int-must-refine-sys"
+kind = "require-link"
+why = "bld_'s glob_int must trace to the mission-level sys_int, mirroring 3d-glob_int-must-refine-sys (prd_/doc_/tst_ only). bld_'s footprint was completed point-by-point after that rule was written (sys_req__concept__bld_enabler, cr-000405 catalog regen), so it was never added to the shared rule's enabler list. Kept as its own bld-scoped rule rather than editing the existing multi-enabler one, since axon_learn only appends new rules, it does not edit existing ones."
+from_type = "^bld_glob_int$"
+link = "refines"
+to_type = "^sys_int$"
+severity = "error"
+
+[[rule]]
+id = "bld-glob_req-must-refine-sys"
+kind = "require-link"
+why = "bld_'s glob_req must trace to mission-level sys_req/sys_int or its own bld_glob_int, mirroring 3d-glob_req-must-refine-sys (prd_/tst_/doc_ only, missing bld_ for the same reason as bld-glob_int-must-refine-sys). Verified against existing bld_glob_req__main__repo_folder_structure, which already refines both bld_glob_int and a sys_req."
+from_type = "^bld_glob_req$"
+link = "refines"
+to_type = "^sys_(req|int)$|^bld_glob_int$"
+severity = "error"
+
+[[rule]]
+id = "bld-feat_req-must-refine"
+kind = "require-link"
+why = "bld_'s feat_req must derive from a bld_ global requirement/intention, an umbrella feat_req, or mission-level sys_req/sys_int directly, mirroring 3d-feat_req-must-refine (prd_/tst_/doc_ only). sys_req/sys_int is included here (unlike the generic rule's to_type) because real bld_feat_req instances refine sys_req directly with no bld_-internal peer yet (bld_feat_req__main__install refines only sys_req__realization__install_dogfood_script/install_extension) — matching what the per-enabler *_feat_req-refines-allows rules already permit for prd_/tst_/doc_."
+from_type = "^bld_feat_req$"
+link = "refines"
+to_type = "^bld_glob_req$|^bld_glob_int$|^bld_feat_int$|^bld_feat_req$|^sys_(req|int)$"
+severity = "error"
+
+[[rule]]
+id = "bld-comp_req-must-refine"
+kind = "require-link"
+why = "bld_'s comp_req must derive from a bld_ feature requirement, sibling comp_req, or mission-level sys_req/sys_int, mirroring 3d-comp_req-must-refine (prd_/tst_/doc_ only). Verified against all eight existing bld_comp_req instances."
+from_type = "^bld_comp_req$"
+link = "refines"
+to_type = "^bld_feat_req$|^bld_comp_req$|^sys_(req|int)$"
+severity = "error"
+
+[[rule]]
+id = "bld_unit_imp-must-implement-unit_des"
+kind = "require-link"
+why = "Every build unit implementation must implement a build unit design. A bld_unit_imp that links to a bld_comp_arc instead inverts the metamodel chain (imp → des → arc, never imp → arc directly)."
+from_type = "^bld_unit_imp$"
+link = "implements"
+to_type = "^bld_unit_des$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "bld_unit_imp-implements-allows"
+kind = "allows-link"
+why = "Build unit implementations may only implement build unit designs."
+from_type = "^bld_unit_imp$"
+link = "implements"
+to_type = "^bld_unit_des$"
+from_status = ["released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "no-bare-tag-in-body"
+kind = "forbid-regex-in-body"
+why = "cr-000444: an unquoted need-id-shaped string written directly into a need's body prose is invisible to every other check - axon check validates only declared link fields, never body content. Real instance: a since-deleted feature-architecture node was cited four times in running prose and never existed. Hard error from approved status onward - a baselined-or-shipped need has no excuse for an untracked bare mention. No citation/quoting exemption of any kind - the rule matches content_pattern against raw content unconditionally, so every existing backtick-wrapped mention across the corpus counts too: measured at 499 errors (approved+) and 226 warnings (draft/proposed) once the citation exemption was removed as a deliberate simplification (a bespoke quoting parser was judged more fragile than the debt it hides)."
+content_pattern = '\b(sys_(int|req|arc)|(prd|saf|sec|tst|doc|bld)_(glob|feat|comp|unit)_(int|req|arc|des|imp)|(prd|tst|doc|saf|sec|bld)_comp)__[a-z][a-z0-9_]+__[a-z0-9_]+\b'
+from_status = ["approved", "released", "deprecated"]
+severity = "error"
+
+[[rule]]
+id = "no-bare-tag-in-body-proposed"
+kind = "forbid-regex-in-body"
+why = "cr-000444: same as no-bare-tag-in-body, but a need still at draft/proposed is under active authoring - a bare mention there is a warning to fix before advancing, not yet a hard blocker."
+content_pattern = '\b(sys_(int|req|arc)|(prd|saf|sec|tst|doc|bld)_(glob|feat|comp|unit)_(int|req|arc|des|imp)|(prd|tst|doc|saf|sec|bld)_comp)__[a-z][a-z0-9_]+__[a-z0-9_]+\b'
+from_status = ["none", "draft", "proposed"]
+severity = "warning"
+

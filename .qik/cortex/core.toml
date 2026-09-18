@@ -1,0 +1,240 @@
+# (c) 2026 Qorix
+# Core rules — fundamental project conventions.
+# Managed via `qik cortex learn --core` / `forget --core`. Hand-edit with care.
+
+ignore = []
+
+[[rule]]
+id = "global__rules-in-english"
+kind = "llm"
+severity = "error"
+include-glob = "**/.qik/**/*.toml"
+why = "Rule #1: rules are always written in English — the company language — so they are unambiguous for every contributor and every tool."
+check_prompt = "Every rule's text fields (id, why, message, suggestion, check_prompt) must be written in English. Answer FAIL + rule id for any rule whose text contains non-English language; otherwise PASS."
+
+[[rule]]
+id = "rust__no-stub-macros"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "**/*.rs"
+why = "No stubs or placeholders — only finished work is committed."
+suggestion = "Implement the function fully instead of leaving todo!()/unimplemented!()."
+pattern = '(todo!|unimplemented!)\s*\('
+
+[[rule]]
+id = "rust__no-todo-comment"
+kind = "forbid-regex"
+severity = "warning"
+include-glob = "**/*.rs"
+why = "TODO comments mark unfinished work; file a tracked backlog item instead."
+suggestion = "Resolve the TODO or record it in the project backlog — not buried in code."
+pattern = '//\s*TODO'
+
+[[rule]]
+id = "rust__no-dbg-macro"
+kind = "forbid-regex"
+severity = "warning"
+include-glob = "**/*.rs"
+why = "dbg!() is temporary debug output and must not be committed."
+suggestion = "Remove dbg!() or replace it with a deliberate tracing/log call."
+pattern = '\bdbg!\s*\('
+
+[[rule]]
+id = "rust__doc-comments-pub"
+kind = "py-rule"
+severity = "error"
+include-glob = "**/*.rs"
+args = ["--pub-only"]
+why = "All public fn/struct/enum/trait/mod/type/const/static need /// doc comments in English, except trait impl methods (inherit from trait) and bare `pub mod foo;` (docs live in the module file as //!)."
+suggestion = "Add a /// doc comment explaining what this item is and does."
+script = "doc_comments.py"
+
+[[rule]]
+id = "rust__doc-comments-private"
+kind = "py-rule"
+severity = "warning"
+include-glob = "**/*.rs"
+why = "All non-public fn/struct/enum/trait at module level need /// doc comments in English so the codebase is navigable without running the compiler."
+suggestion = "Add a /// doc comment explaining what this item is and does."
+script = "doc_comments.py"
+
+[[rule]]
+id = "rust__subcommand-impl-marker"
+kind = "py-rule"
+severity = "warning"
+include-glob = "prod/rust/**/{cli,main}.rs"
+why = "qik axon check validates the declared graph top-down, so a CLI subcommand implemented with no impl marker produces no impl need and stays invisible to it (the bottom-up blind spot behind nx-008/cr-000008). This is the deterministic half of subcommand traceability: it enforces that every clap Subcommand variant carries a codelinks impl marker, after which the ordinary REQ->DSN->IMPL axon check takes over. Warning until every subcommand is marked; then it can be raised to error."
+suggestion = "Add a marker directly above the variant: // @<title>, IMPL_<id>, impl, [DSN_<id>] — and author the REQ_/DSN_ it links to, so the subcommand traces end to end."
+script = "subcommand_markers.py"
+
+[[rule]]
+id = "rust__code-in-english"
+kind = "llm"
+severity = "warning"
+include-glob = "**/*.rs"
+why = "All code and comments are written in English so every contributor and tool can read them without translation."
+check_prompt = "Are all identifiers, comments, and doc strings in the code written in English? Answer FAIL + location for any non-English text found in identifiers, inline comments, or doc comments; otherwise PASS."
+
+[[rule]]
+id = "rust__doc-explains-why"
+kind = "llm"
+severity = "warning"
+include-glob = "**/*.rs"
+why = "Comments should explain WHY; well-named identifiers describe WHAT."
+check_prompt = "Do the comments explain the WHY (invariants, constraints, non-obvious decisions) rather than just restating the WHAT that the name already conveys? Answer FAIL + location for purely redundant or missing-why comments; otherwise PASS."
+
+[[rule]]
+id = "rust__no-impl-without-approval"
+kind = "llm"
+severity = "warning"
+include-glob = "**/*.rs"
+why = "Scope creep disguised as helpfulness leads to untested, unapproved API surface."
+check_prompt = "Were new public types, traits, or modules introduced that go beyond the explicitly approved task? Answer FAIL + type/trait name for any unrequested new public API surface; otherwise PASS."
+
+[[rule]]
+id = "rust__use-import-discipline"
+kind = "py-rule"
+severity = "warning"
+include-glob = "**/*.rs"
+exclude-glob = "{needs/_build/**,**/tests/**}"
+why = "Import groups must appear in this exact order — (1) std, (2) external deps, (3) workspace crates always via ::prelude::*, (4) own crate via crate:: — with blank lines between groups. Groups out of order or merged without a blank line are flagged. No pub use re-exports outside pub mod prelude."
+script = "import_discipline.py"
+
+[[rule]]
+id = "needs-marker-no-double-brackets"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "prod/**/*.{rs,py,ts,sh,cpp}"
+why = "sphinx-needs interprets [[ in a need title as a dynamic function call, throwing InvalidNeedException and breaking the build. The @needs title is the first comma-separated field; [[ anywhere in it causes the entire build to abort with exit code 2."
+suggestion = "Remove [[ from the @needs title (first comma field). Use plain prose, e.g. 'link section' instead of '[[link]] section'."
+pattern = '@needs [^,\n]*\[\['
+
+ignore = []
+
+[[rule]]
+id = "needs-marker-no-empty-parens"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "prod/**/*.{rs,py,ts,sh,cpp}"
+why = "sphinx-needs interprets () in a need title as a dynamic function call, breaking the build. Same root cause as needs-marker-no-double-brackets."
+suggestion = "Remove () from the @needs title. Use plain prose, e.g. 'name enumeration' instead of 'names()'."
+pattern = '@needs [^,\n]*\(\)'
+
+[[rule]]
+id = "folder-must-have-bld-unit-imp"
+kind = "require-regex"
+severity = "error"
+include-glob = "**/.folder"
+why = "A .folder file is the bld_unit_imp for a canonical folder — it declares the folder exists and implements a bld_unit_des. Every .folder must carry exactly this traceability link; a .folder without one is an untraced folder."
+suggestion = "Add a line: # @needs <description>, bld_unit_imp__<cluster>__<name>, bld_unit_imp, [bld_unit_des__<cluster>__<name>], proposed"
+pattern = '@needs [^,\n]+, [^,\n]+, bld_unit_imp,'
+
+[[rule]]
+id = "folder-must-not-have-non-bld-imp"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "**/.folder"
+why = "A .folder file is exclusively a bld_unit_imp. Placing prd_/tst_/doc_/saf_/sec_ unit_imp markers here conflates folder-structure traceability with product/test traceability, which live in separate prod/ content files."
+suggestion = "Remove non-bld_unit_imp @needs markers from this .folder file. Place prd_unit_imp markers in the corresponding prod/ content file instead."
+pattern = '@needs [^,\n]+, [^,\n]+, (?:prd|tst|doc|saf|sec)_unit_imp,'
+
+ignore = []
+
+[[rule]]
+id = "no-internal-cr-mentions-in-code"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "**/*.{rs,c,h,cpp,hpp,cc,cxx,java,py,ts,tsx,sh}"
+exclude-glob = "{needs/**,**/templates/needs/**}"
+why = "Internal change-request numbers are engineering provenance, not part of any shipped surface. A leaked cr-NNNNNN reference in code, comments, or docstrings is invisible provenance that breaks the moment the CR store is pruned or renumbered; rationale belongs in the needs graph instead, where such mentions are tolerated (though a dedicated link type is preferred over prose citation)."
+message = "cr-NNNNNN reference found outside needs/ — code and comments must not cite internal change-request numbers"
+suggestion = "Remove the CR-number citation, or reword generically. Legitimate cr-NNNNNN id-format examples (e.g. nexus's own domain vocabulary) may use a #[qik-cortex allow] inline waiver."
+pattern = '(?i)\bcr-\d{6}\b'
+
+ignore = []
+
+[[rule]]
+id = "no-internal-cr-mentions-in-agent-surfaces"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "{.github/agents/**,.github/prompts/**,.claude/agents/**,.claude/skills/**,.qik/skills/**}"
+why = "Agent/skill/prompt files are the same shipped, agent-facing surface as CLI help text or MCP tool descriptions — a leaked CR-number citation is invisible internal provenance that breaks the moment the CR store is pruned or renumbered. qik-nexus's own agent/prompt files (and qik-thalam-tutor teaching material) are the sole exemption, since cr-NNNNNN is nexus's own domain vocabulary and its command examples must show real id-shaped values."
+message = "cr-NNNNNN reference found in an agent/skill/prompt file — these must not cite internal change-request numbers"
+suggestion = "Remove the CR-number citation and reword generically. If the CR-id format itself must be shown as an example, use a #[qik-cortex allow] inline waiver."
+pattern = '(?i)\bcr-\d{6}\b'
+
+ignore = []
+
+[[rule]]
+id = "no-internal-cr-mentions-in-code"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "**/*.{rs,c,h,cpp,hpp,cc,cxx,java,py,ts,tsx,sh}"
+exclude-glob = "{needs/**,**/templates/needs/**,prod/qik/rust/qik-nexus/src/entry.rs,prod/qik/rust/qik-nexus/src/store.rs}"
+why = "Internal change-request numbers are engineering provenance, not part of any shipped surface. A leaked cr-NNNNNN reference in code, comments, or docstrings is invisible provenance that breaks the moment the CR store is pruned or renumbered; rationale belongs in the needs graph instead, where such mentions are tolerated (though a dedicated link type is preferred over prose citation). qik-nexus's own store/entry code is exempt at the file level since it genuinely models and tests the cr-NNNNNN id scheme itself, not a leaked reference."
+message = "cr-NNNNNN reference found outside needs/ — code and comments must not cite internal change-request numbers"
+suggestion = "Remove the CR-number citation, or reword generically. qik-nexus's own store/entry modules (which model the cr-NNNNNN id itself) and a single tracker-locator example in qik-mcp/tools.rs are the sole exemptions."
+pattern = '(?i)\bcr-\d{6}\b'
+
+ignore = []
+
+[[rule]]
+id = "no-internal-cr-mentions-in-docs"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "docs/**/*.md"
+why = "docs/ is shipped, user-facing manual content — a leaked CR-number citation is invisible-to-the-reader internal provenance that breaks the moment the CR store is pruned or renumbered. A cr-NNNNNN-shaped example used purely to illustrate the id format in a usage demo (e.g. `qik nexus promote cr-000006`) is the sole exemption."
+message = "cr-NNNNNN reference found in shipped documentation — docs must not cite internal change-request numbers"
+suggestion = "Remove the CR-number citation and reword generically. If the CR-id format itself must be shown as a usage example, use a #[qik-cortex allow] inline waiver."
+pattern = '(?i)\bcr-\d{6}\b'
+
+ignore = []
+
+[[rule]]
+id = "no-internal-cr-mentions-in-python-tests"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "tests/**/*.py"
+why = "Python test suites under tests/ are the same engineering-provenance surface as Rust source comments — a regression test's docstring or comment citing the CR number it was written for is invisible provenance that breaks the moment the CR store is pruned or renumbered. Kept as its own rule (distinct from no-internal-cr-mentions-in-code) since tests/ commonly needs literal cr-NNNNNN-shaped fixture values, which deserves its own tailored hint rather than sharing the code rule's wording."
+message = "cr-NNNNNN reference found in a Python test file — test code/comments must not cite internal change-request numbers"
+suggestion = "Remove the CR-number citation, or reword the test comment generically. A test fixture that must construct a literal cr-NNNNNN-shaped value (e.g. as sample tracker-id input) may use a #[qik-cortex allow] inline waiver."
+pattern = '(?i)\bcr-\d{6}\b'
+
+ignore = []
+
+[[rule]]
+id = "no-internal-cr-mentions-in-code"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "prod/**/*.{rs,c,h,cpp,hpp,cc,cxx,java,py,ts,tsx,sh}"
+exclude-glob = "{needs/**,**/templates/needs/**,prod/qik/rust/qik-nexus/src/entry.rs,prod/qik/rust/qik-nexus/src/store.rs}"
+why = "Internal change-request numbers are engineering provenance, not part of any shipped surface. Scoped to prod/ (the canonical product-output folder, consistent with tests/ and docs/ getting their own rules) rather than the whole repo. A leaked cr-NNNNNN reference in code, comments, or docstrings is invisible provenance that breaks the moment the CR store is pruned or renumbered; rationale belongs in the needs graph instead, where such mentions are tolerated (though a dedicated link type is preferred over prose citation). qik-nexus's own store/entry code is exempt at the file level since it genuinely models and tests the cr-NNNNNN id scheme itself, not a leaked reference."
+message = "cr-NNNNNN reference found outside needs/ — code and comments must not cite internal change-request numbers"
+suggestion = "Remove the CR-number citation, or reword generically. qik-nexus's own store/entry modules (which model the cr-NNNNNN id itself) and a single tracker-locator example in qik-mcp/tools.rs are the sole exemptions."
+pattern = '(?i)\bcr-\d{6}\b'
+
+ignore = []
+
+[[rule]]
+id = "no-internal-cr-mentions-in-code"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "prod/**/*.{rs,c,h,cpp,hpp,cc,cxx,java,py,ts,tsx,sh}"
+exclude-glob = "{needs/**,**/templates/needs/**,.claude/worktrees/**,prod/qik/rust/qik-nexus/src/entry.rs,prod/qik/rust/qik-nexus/src/store.rs}"
+why = "Internal change-request numbers are engineering provenance, not part of any shipped surface. Scoped to prod/ (the canonical product-output folder, consistent with tests/ and docs/ getting their own rules) rather than the whole repo, and excluding .claude/worktrees/ (parallel-session working copies, not this repo's real tree). A leaked cr-NNNNNN reference in code, comments, or docstrings is invisible provenance that breaks the moment the CR store is pruned or renumbered; rationale belongs in the needs graph instead, where such mentions are tolerated (though a dedicated link type is preferred over prose citation). qik-nexus's own store/entry code is exempt at the file level since it genuinely models and tests the cr-NNNNNN id scheme itself, not a leaked reference."
+message = "cr-NNNNNN reference found outside needs/ — code and comments must not cite internal change-request numbers"
+suggestion = "Remove the CR-number citation, or reword generically. qik-nexus's own store/entry modules (which model the cr-NNNNNN id itself) and a single tracker-locator example in qik-mcp/tools.rs are the sole exemptions."
+pattern = '(?i)\bcr-\d{6}\b'
+
+ignore = []
+
+[[rule]]
+id = "no-internal-cr-mentions-in-agent-surfaces"
+kind = "forbid-regex"
+severity = "error"
+include-glob = "{.github/agents/**,.github/prompts/**,.claude/agents/**,.claude/skills/**,.qik/skills/**,.qik/thalam/sme/**}"
+exclude-glob = ".claude/worktrees/**"
+why = "Agent/skill/prompt files are the same shipped, agent-facing surface as CLI help text or MCP tool descriptions — a leaked CR-number citation is invisible internal provenance that breaks the moment the CR store is pruned or renumbered. Excludes .claude/worktrees/ (parallel-session working copies, not this repo's real tree). .qik/thalam/sme/ added (2026-09-07): the shared SME guardrail/knowledge files loaded by every thalam persona are the same shipped surface as the agent/skill files that load them — a gap in this rule's own scope, not an intentional exemption, until this fix. qik-nexus's own agent/prompt files (and qik-thalam-tutor teaching material) are the sole exemption, since cr-NNNNNN is nexus's own domain vocabulary and its command examples must show real id-shaped values."
+message = "cr-NNNNNN reference found in an agent/skill/prompt file — these must not cite internal change-request numbers"
+suggestion = "Remove the CR-number citation and reword generically. If the CR-id format itself must be shown as an example, use a #[qik-cortex allow] inline waiver."
+pattern = '(?i)\bcr-\d{6}\b'

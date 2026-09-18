@@ -1,0 +1,12 @@
+# (c) 2026 Qorix
+# qik settings: repository-level configuration overrides.
+# All keys are optional; omit a key to use the built-in default.
+
+# [axon]
+# Path to the sphinx-needs source directory.
+# Built-in default: needs/
+# needs_dir = "needs"
+#
+# Path to the compiled needs.json output.
+# Built-in default: {needs_dir}/_build/needs/needs.json
+# needs_json = "needs/_build/needs/needs.json"

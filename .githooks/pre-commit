@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# qik pre-commit gate — thin dispatcher.
+# Activate once per clone: git config core.hooksPath .githooks
+# All logic lives in pre-commit.sh so it can be scanned by sphinx-codelinks
+# (git hooks must be extensionless; .sh files are auto-discovered).
+exec "$(dirname "$0")/pre-commit.sh" "$@"

@@ -1,0 +1,28 @@
+# (c) 2026 Qorix
+# qik quality gate — fails the build on error-severity statements.
+name: qik-gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  qik-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install qik
+        run: cargo install --git https://github.com/HartmannNico/qorix-ik qik-main
+      - name: Run qik cortex check
+        run: qik cortex check --root . --kind algo
+      # Traceability integrity — qik init scaffolds the needs project, so the
+      # gate also fails on orphans / dangling links across the artifact graph.
+      - name: Set up Python (needs toolchain)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build traceability graph
+        run: bash scripts/needs-build.sh
+      - name: Run qik axon check
+        run: qik axon check

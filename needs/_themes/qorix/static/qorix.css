@@ -1,0 +1,566 @@
+/*
+ * Qorix Sphinx theme.
+ * Dark-mode-only, high-contrast, SDV/automotive technical documentation style.
+ * Inherits from `pydata_sphinx_theme` (cr-000261) — that theme supplies the
+ * navbar/sidebar/scrollspy structure and DOM; this file owns 100% of the
+ * visual language (color, type, sphinx-needs traceability views) on top of
+ * it, mainly via its `--pst-color-*` custom properties.
+ *
+ * Brand palette (fixed set — do not introduce derived/tinted shades):
+ * blue #3C00FF, cyan #00FFFF, lime #D7FF3C, white #FFFFFF, black #0D0D0D,
+ * plus one lime-to-cyan diagonal gradient. The gradient may be combined with
+ * blue or black; panel/border tones below are neutral UI chrome, not brand
+ * colors, and stay desaturated grays derived pragmatically from black.
+ */
+
+:root {
+    --qorix-bg: #0d0d0d;
+    --qorix-panel: #1a1a1a;
+    --qorix-panel-2: #242424;
+
+    --qorix-blue: #3c00ff;
+    --qorix-cyan: #00ffff;
+    --qorix-lime: #d7ff3c;
+
+    --qorix-text: #ffffff;
+    --qorix-text-secondary: #bdbdbd;
+
+    --qorix-border: #333333;
+
+    /* Brand diagonal, top-left to bottom-right — used sparingly (e.g. the
+       "back to top" button), not as a general-purpose fill. */
+    --qorix-gradient-diagonal: linear-gradient(135deg, var(--qorix-lime) 0%, var(--qorix-cyan) 100%);
+
+    /* sphinx-needs reads these to color the need/needtable/datatable chrome.
+       Declared !important because sphinx_needs registers its bundled theme
+       CSS as a separate stylesheet whose load order relative to this file is
+       not guaranteed — these must win regardless. */
+    --sn-color-need-border: var(--qorix-border) !important;
+    --sn-color-need-row-border: var(--qorix-border) !important;
+    --sn-color-need-bg: var(--qorix-panel) !important;
+    --sn-color-need-bg-head: var(--qorix-panel-2) !important;
+    --sn-color-complete-bg-head: var(--qorix-panel-2) !important;
+    --sn-color-complete-bg-foot: var(--qorix-panel-2) !important;
+    --sn-color-datatable-body-bg: var(--qorix-panel) !important;
+    --sn-color-datatable-label: var(--qorix-text) !important;
+    --sn-color-datatable-btn-border: var(--qorix-border) !important;
+    --sn-color-bg-lightgray: rgba(255, 255, 255, 0.05) !important;
+    --sn-color-border-lightgray: var(--qorix-border) !important;
+}
+
+/* pydata_sphinx_theme rebrand: point its own palette at the qorix tokens
+   above instead of maintaining two independent color systems. default_mode
+   is fixed to "dark" (conf.py), so only the dark-mode selector needs these —
+   there is no light mode to keep in sync.
+   Note the surface ladder: pydata treats `on-background`/`on-surface` as
+   PANEL tones layered atop `background`/`surface` (headers, dropdowns,
+   admonitions, kbd, code blocks) — not as text colors on those backgrounds,
+   despite the name. Getting this backwards renders the navbar/header as
+   theme-default light-on-white even with dark_mode set. */
+:root,
+html[data-theme="dark"] {
+    --pst-color-background: var(--qorix-bg);
+    --pst-color-on-background: var(--qorix-panel);
+    --pst-color-surface: var(--qorix-panel-2);
+    --pst-color-on-surface: var(--qorix-text);
+
+    --pst-color-text-base: var(--qorix-text);
+    --pst-color-text-muted: var(--qorix-text-secondary);
+    --pst-color-heading: var(--qorix-cyan);
+
+    --pst-color-primary: var(--qorix-cyan);
+    --pst-color-primary-bg: var(--qorix-panel-2);
+    --pst-color-primary-text: var(--qorix-bg);
+    --pst-color-primary-highlight: var(--qorix-blue);
+    --pst-color-primary-highlight-text: var(--qorix-text);
+
+    --pst-color-secondary: var(--qorix-lime);
+    --pst-color-secondary-bg: var(--qorix-panel-2);
+    --pst-color-secondary-text: var(--qorix-bg);
+    --pst-color-secondary-highlight: var(--qorix-cyan);
+    --pst-color-secondary-highlight-text: var(--qorix-bg);
+
+    --pst-color-accent: var(--qorix-blue);
+    --pst-color-accent-bg: var(--qorix-panel-2);
+    --pst-color-accent-text: var(--qorix-text);
+    --pst-color-accent-highlight: var(--qorix-blue);
+    --pst-color-accent-highlight-text: var(--qorix-text);
+
+    --pst-color-link: var(--qorix-lime);
+    --pst-color-link-hover: var(--qorix-cyan);
+    --pst-color-link-higher-contrast: var(--qorix-cyan);
+    --pst-color-inline-code: var(--qorix-cyan);
+
+    --pst-color-border: var(--qorix-border);
+    --pst-color-border-muted: var(--qorix-border);
+
+    --pst-color-table: var(--qorix-panel);
+    --pst-color-table-heading-bg: var(--qorix-panel-2);
+    --pst-color-table-inner-border: var(--qorix-border);
+    --pst-color-table-outer-border: var(--qorix-border);
+    --pst-color-table-row-zebra-high-bg: var(--qorix-panel);
+    --pst-color-table-row-zebra-low-bg: var(--qorix-panel-2);
+
+    --pst-color-shadow: transparent;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Reset / base                                                            */
+/* ---------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    color-scheme: dark;
+}
+
+::selection {
+    background: var(--qorix-cyan);
+    color: var(--qorix-bg);
+}
+
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--qorix-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--qorix-panel-2);
+    border: 2px solid var(--qorix-bg);
+    border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--qorix-border);
+}
+
+/* Logo: image + short code on one row, full project name on a second row
+   below — pydata's `logo.text` only gives one <p>, so the second line is a
+   generated ::after fragment. Its text comes from `--qorix-logo-subtitle`,
+   injected per page by conf.py's html-page-context hook from Sphinx's own
+   `project` config value (cr-000380) — never a hardcoded brand string, so
+   every scaffolded project shows its own name, not qik's. */
+a.navbar-brand.logo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    height: auto;
+    max-height: none;
+    gap: 0.35rem 0.5rem;
+}
+
+a.navbar-brand.logo img.logo__image {
+    height: 28px;
+    max-height: 28px;
+    width: auto;
+}
+
+a.navbar-brand.logo p.logo__title {
+    font-size: 1.3em;
+    line-height: 1;
+    margin: 0;
+    color: var(--qorix-text);
+}
+
+a.navbar-brand.logo::after {
+    content: var(--qorix-logo-subtitle, "Qorix Intelligence Kit");
+    flex-basis: 100%;
+    font-size: 1.1em;
+    letter-spacing: 0.06em;
+    color: var(--qorix-text-secondary);
+}
+
+/* System sidebar: Mission/Concept/Realization quick-access row
+   (needs/_templates/sidebar-nav-bs.html). Plain hand-written <a> tags, not
+   the toctree-generated markup pydata's own "current" styling targets, so
+   the active aspect needs its own explicit highlight — otherwise a reader
+   has no visual cue which of the three they are currently in. */
+.qorix-aspect-quickaccess a.current {
+    color: var(--qorix-cyan);
+    font-weight: 700;
+    border-left: 2px solid var(--qorix-cyan);
+    padding-left: 0.6em;
+    margin-left: -0.6em;
+}
+
+hr.qorix-aspect-separator {
+    border-top: 1px solid var(--qorix-border);
+    margin: 0.6em 0;
+}
+
+/* "Back to top" button (#pst-back-to-top, pydata_sphinx_theme): the brand
+   gradient as the button fill, blue text on top. On hover, invert to a
+   solid blue fill with white text — a true gradient-in-text hover (button
+   solid blue AND the label itself gradient-filled) needs the text duplicated
+   into a pseudo-element (background-clip: text clips the WHOLE element's
+   background, box included, so box-fill and text-fill can't both be
+   gradients on the same element without a second layer) — fragile and loses
+   the `_()` translation on the label, so not worth it for a hover state. */
+#pst-back-to-top {
+    background-color: transparent;
+    background-image: var(--qorix-gradient-diagonal);
+    color: var(--qorix-blue);
+}
+
+#pst-back-to-top:hover {
+    background-image: none;
+    background-color: var(--qorix-blue);
+    color: var(--qorix-text);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Typography                                                              */
+/* ---------------------------------------------------------------------- */
+
+article.bd-article h1,
+article.bd-article h2,
+article.bd-article h3,
+article.bd-article h4,
+article.bd-article h5,
+article.bd-article h6 {
+    font-weight: 700;
+    line-height: 1.25;
+    margin-top: 2em;
+    margin-bottom: 0.6em;
+}
+
+article.bd-article h1 {
+    color: var(--qorix-cyan);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 2.1em;
+    padding-bottom: 0.3em;
+    border-bottom: 2px solid var(--qorix-cyan);
+    margin-top: 0;
+}
+
+article.bd-article h2 {
+    color: var(--qorix-cyan);
+    font-size: 1.6em;
+    padding-bottom: 0.2em;
+    border-bottom: 1px solid var(--qorix-border);
+}
+
+article.bd-article h3 {
+    color: var(--qorix-lime);
+    font-size: 1.3em;
+}
+
+article.bd-article h4 {
+    color: var(--qorix-lime);
+    font-size: 1.1em;
+}
+
+article.bd-article h5,
+article.bd-article h6 {
+    font-size: 1em;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--qorix-text-secondary);
+}
+
+article.bd-article a.headerlink {
+    color: var(--qorix-lime);
+    padding-left: 0.4em;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid var(--qorix-border);
+    margin: 2em 0;
+}
+
+blockquote {
+    border-left: 3px solid var(--qorix-border);
+    margin-left: 0;
+    padding-left: 1.2em;
+    color: var(--qorix-text-secondary);
+}
+
+/* Links inside need boxes only (refines/generalizes/etc. cross-references) — lime. */
+table.need a.reference {
+    color: var(--qorix-lime);
+}
+
+table.need a.reference:hover {
+    color: var(--qorix-cyan);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Generic content tables                                                  */
+/* ---------------------------------------------------------------------- */
+
+/* Table captions: compact label above the table, not a heading. */
+table caption,
+table.NEEDS_TABLE caption,
+table.NEEDS_DATATABLES caption {
+    caption-side: top;
+    text-align: left;
+    font-size: 0.8em;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--qorix-text-secondary);
+    padding: 0 0 0.5em 0;
+    border-bottom: none;
+}
+
+table.docutils {
+    border: 1px solid var(--qorix-border);
+    border-collapse: collapse;
+    width: 100%;
+}
+
+table.docutils th,
+table.docutils th p {
+    background: var(--qorix-panel-2);
+    color: var(--qorix-cyan);
+    font-weight: 600;
+    font-size: 1em;
+    padding: 0.6em 0.8em;
+    border-bottom: 1px solid var(--qorix-border);
+}
+
+table.docutils td {
+    background: var(--qorix-panel);
+    color: var(--qorix-text);
+    padding: 0.6em 0.8em;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--qorix-border);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Code                                                                    */
+/* ---------------------------------------------------------------------- */
+
+pre,
+div.highlight,
+div[class*="highlight-"] {
+    background: var(--qorix-panel) !important;
+    border: 1px solid var(--qorix-border);
+    color: var(--qorix-text);
+    padding: 1em;
+    overflow-x: auto;
+}
+
+pre {
+    color: var(--qorix-text);
+}
+
+code,
+code.docutils,
+code.literal {
+    background: var(--qorix-panel-2);
+    color: var(--qorix-cyan);
+    border: 1px solid var(--qorix-border);
+    padding: 0.1em 0.35em;
+    font-size: 0.9em;
+}
+
+pre code,
+code.xref,
+a code,
+h1 code, h2 code, h3 code, h4 code, h5 code, h6 code,
+.sig-name, code.descname, .sig-prename, code.descclassname {
+    background: transparent;
+    border: none;
+    color: inherit;
+    padding: 0;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Admonitions                                                             */
+/* ---------------------------------------------------------------------- */
+
+div.admonition {
+    background: var(--qorix-panel);
+    border: 1px solid var(--qorix-border);
+    border-left: 4px solid var(--qorix-cyan);
+    padding: 0.8em 1.2em;
+    box-shadow: none;
+}
+
+div.admonition.tip,
+div.admonition.hint,
+div.admonition.important {
+    border-left-color: var(--qorix-lime);
+}
+
+div.admonition.warning,
+div.admonition.caution,
+div.admonition.attention,
+div.admonition.danger,
+div.admonition.error {
+    border-left-color: var(--qorix-blue);
+}
+
+p.admonition-title {
+    color: var(--qorix-text);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 0.9em;
+}
+
+nav.contents,
+aside.topic,
+div.topic {
+    background: var(--qorix-panel);
+    border: 1px solid var(--qorix-border);
+}
+
+/* ---------------------------------------------------------------------- */
+/* sphinx-needs — traceability views                                      */
+/* ---------------------------------------------------------------------- */
+
+/* Need boxes: dark panel, high contrast, flat (no shadows/radius) */
+table.need.need.need {
+    background-color: var(--qorix-panel) !important;
+    border: 1px solid var(--qorix-border) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    position: relative;
+}
+
+table.need.need.need > tbody > tr.head {
+    background-color: var(--qorix-panel-2) !important;
+}
+
+table.need.need.need > tbody > tr.meta {
+    color: var(--qorix-text-secondary);
+    font-size: smaller;
+}
+
+table.need.need.need > tbody > tr.footer {
+    border-top: 1px solid var(--qorix-border) !important;
+}
+
+table.need.need.need td {
+    color: var(--qorix-text);
+}
+
+/* Clear ID rendering */
+span.needs-id,
+.needs-id {
+    font-family: "Consolas", "Menlo", monospace;
+    color: var(--qorix-cyan);
+    font-weight: 700;
+}
+
+/* Per-type left border (need-type classes are emitted by sphinx-needs as
+   needs_type_<directive>, one per entry in needs_types in conf.py). */
+table.need.needs_type_req {
+    border-left: 4px solid var(--qorix-cyan) !important;
+}
+
+table.need.needs_type_design {
+    /* the "design" layer plays the role of a spec/detailed-design need */
+    border-left: 4px solid var(--qorix-lime) !important;
+}
+
+table.need.needs_type_impl {
+    border-left: 4px solid var(--qorix-text) !important;
+}
+
+table.need.needs_type_arch {
+    border-left: 4px solid var(--qorix-blue) !important;
+}
+
+table.need.needs_type_intent {
+    border-left: 4px solid var(--qorix-blue) !important;
+}
+
+table.need.needs_type_doc,
+table.need.needs_type_guide {
+    border-left: 4px solid var(--qorix-text-secondary) !important;
+}
+
+/* test: the brand gradient as a two-tone strip */
+table.need.needs_type_test {
+    border-left: 4px solid transparent !important;
+}
+
+table.need.needs_type_test::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--qorix-gradient-diagonal);
+}
+
+/* needtable / datatable results */
+table.NEEDS_TABLE.NEEDS_TABLE,
+table.NEEDS_DATATABLES.NEEDS_DATATABLES {
+    background: var(--qorix-panel);
+    border: 1px solid var(--qorix-border);
+}
+
+table.NEEDS_TABLE.NEEDS_TABLE thead th,
+table.NEEDS_TABLE.NEEDS_TABLE thead th p,
+table.NEEDS_DATATABLES.NEEDS_DATATABLES thead th,
+table.NEEDS_DATATABLES.NEEDS_DATATABLES thead th p {
+    background: var(--qorix-panel-2) !important;
+    color: var(--qorix-cyan) !important;
+    font-weight: 600;
+    font-size: 1em;
+    border-bottom: 1px solid var(--qorix-border);
+}
+
+table.NEEDS_TABLE.NEEDS_TABLE td,
+table.NEEDS_DATATABLES.NEEDS_DATATABLES td {
+    background: var(--qorix-panel);
+    color: var(--qorix-text);
+    border-color: var(--qorix-border);
+}
+
+div.needstable_wrapper {
+    background: var(--qorix-bg);
+}
+
+/* needflow: graphviz renders black-on-transparent by default, so the diagram
+   needs a light frame of its own to stay legible against the page's dark
+   background — a flat bordered panel, not a card (no radius, no shadow). */
+div.graphviz {
+    background: var(--qorix-panel-2);
+    border: 1px solid var(--qorix-blue);
+    padding: 1em;
+    display: inline-block;
+}
+
+/* Filter / dead-link indicators */
+span.needs_dead_link {
+    color: var(--qorix-text-secondary);
+}
+
+span.needs_dead_link.forbidden {
+    color: var(--qorix-blue);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Footer                                                                   */
+/* ---------------------------------------------------------------------- */
+
+/* pydata_sphinx_theme's bundled stylesheet sets the bare `footer` element to
+   Bootstrap's default muted grey (`footer{color:#6c757d;...}`) via a
+   plain-tag selector — none of the --pst-color-* custom property overrides
+   above reach it, since no --pst-color-* variable is involved in that rule
+   at all. `.bd-footer` (the class pydata's own footer.html template puts on
+   the element) is a class selector, which beats that lower-specificity
+   bare-tag rule outright regardless of stylesheet load order, and `color`
+   is inherited by the footer's <p class="copyright">/<p class="sphinx-
+   version">/<p class="theme-version"> children automatically — fixes the
+   documentation site's footer-readability requirement. */
+.bd-footer {
+    color: var(--qorix-text);
+}

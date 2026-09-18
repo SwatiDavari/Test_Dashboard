@@ -1,0 +1,43 @@
+# (c) 2026 Qorix
+# qik-nexus config: the current PI (increment) number, plus version
+# declarations — where each module's version lives.
+
+# The current increment (PI) number. Like a version, this is mutated in place
+# by `qik nexus release` — never hand-edit it.
+increment = 1
+
+# A [[version]] entry declares where a module's version lives. Two forms
+# are supported:
+#
+# File-based: a glob and a regex with one capture group select the versioned
+# lines across one or more files. Entries are independent, so a repository
+# versions its modules separately. Uncomment and tailor:
+#
+# [[version]]
+# name = "rust"
+# glob = "**/Cargo.toml"
+# pattern = 'version = "(\\d+\\.\\d+\\.\\d+)"'
+#
+# Inline: the version lives directly in this file. Use this when the project
+# has no external manifest (e.g. docs-only or Python-only repos):
+#
+# [[version]]
+# name = "docs"
+# version = "0.1.0"
+#
+# Uncomment and tailor to connect tracker sync (github / jira):
+# Token must be set in the environment — never put credentials in this file.
+#
+# [[tracker]]
+# name = "github"
+# type = "github"
+# repo = "owner/repo"
+# Set env: QIK_NEXUS_GITHUB_TOKEN=ghp_...
+#
+# [[tracker]]
+# name = "jira"
+# type = "jira"
+# base_url = "https://company.atlassian.net"
+# project = "PROJ"
+# email = "you@company.com"  # Jira Cloud only; omit for Server/DC (Bearer PAT)
+# Set env: QIK_NEXUS_JIRA_TOKEN=...

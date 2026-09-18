@@ -1,0 +1,74 @@
+{
+  "skill": "qik-nexus",
+  "version": "1.1",
+  "description": "Qorix project-lifecycle context — capture ideas and walk them idea→backlog→pi→released as a flat, self-hosted store, link a pi item into the needs graph, cut releases with deterministic version bumps, driven by `qik nexus`.",
+  "tool": "qik",
+  "priming": {
+    "description": "Recall the pipeline state from the store, not from memory.",
+    "source": { "exec": "qik nexus list --mcp" },
+    "inject": "context"
+  },
+  "steps": [
+    {
+      "id": "capture",
+      "label": "Capture",
+      "type": "exec",
+      "command": "qik nexus capture <STAGE> \"<HEADLINE>\" --what \"<WHAT>\" --why \"<WHY>\"",
+      "parse": "text",
+      "on_fail": "report",
+      "description": "Record a new entry at any stage (idea/backlog/pi). The why is mandatory — an idea without a purpose can never become an intent. Declare --change breaking/feature/fix on anything that will ship, for version derivation."
+    },
+    {
+      "id": "link",
+      "label": "Link into the graph",
+      "type": "llm",
+      "prompt": "When a pi item is taken on, author the needs it gives rise to in the sphinx-needs source first, then record the coupling with `qik nexus link <ID> <NEED>...`. Link only ids that already exist in the graph, so `qik axon check` stays clean.",
+      "on_fail": "report",
+      "description": "The one edge from the lifecycle store up into the traceability graph. nexus validates id format but never authors or reads the needs themselves. Use `qik nexus unlink <ID> <NEED>...` to remove stale need-ids after renames."
+    },
+    {
+      "id": "author_needs",
+      "label": "Author needs with qik-thalam / review with pharaoh",
+      "type": "llm",
+      "prompt": "When authoring new needs nodes (sys_req, sys_arc, prd_glob_req, etc.) always use the @qik-thalam subagent — it is the sole persona authorized to write directly into needs/. For requirements review and quality checks invoke pharaoh (pharaoh.req-review, pharaoh.arch-review, etc.). Concept-level needs — especially sys_req__concept__*_enabler and sys_arc__concept__*_enabler — must cite the specific ISO norm clause they realize: ISO/IEC/IEEE 15288 §6.4.x for structural positioning, plus the enabler's own content norm with specific clause anchors (ISO 26262 §x for saf_, ISO/SAE 21434 clause x for sec_, ISO/IEC/IEEE 29119-3 §x for tst_, ISO/IEC/IEEE 26511/26514 §x for doc_). Name both the norm and the clause — never just the norm. prd_ is grounded directly in 15288 and has no second content norm.",
+      "on_fail": "report",
+      "description": "Authoring gate: qik-thalam writes needs/, pharaoh reviews them. Concept enabler needs must reference 15288 structural positioning AND the enabler-specific content norm with clause precision."
+    },
+    {
+      "id": "ref",
+      "label": "Attach external reference",
+      "type": "exec",
+      "command": "qik nexus ref <ID> <TRACKER> <LOCATOR>",
+      "parse": "text",
+      "on_fail": "report",
+      "description": "Attach a structured external-tracker reference (e.g. a GitHub issue URL or Jira key) to any entry. Each ref gets an auto-assigned id (ref-001, ref-002, ...). Remove a stale ref with `qik nexus unref <ID> <REF_ID_OR_WHAT:LOCATOR>`."
+    },
+    {
+      "id": "tracker_sync",
+      "label": "Tracker sync",
+      "type": "exec",
+      "command": "nexus connect && nexus pull --mcp",
+      "parse": "json",
+      "on_fail": "report",
+      "description": "Connect to configured trackers and pull/reconcile. `nexus connect` lists all configured trackers (url/project/user/token status) from .qik/nexus/config.toml. `nexus pull` imports new open assigned issues as idea entries and reconciles existing non-terminal refs (headline drift, closed→advance). Never touches staged/released entries. `nexus push` posts a progress comment on-demand. `nexus track <cr> <tracker> <locator>` links a CR to an issue; `nexus untrack <cr> <tracker>` removes the link. `nexus ping <tracker>` tests auth. Write a tracker block: `nexus connect <name> --type github|jira --url <url> --project <project> [--user <user>]`."
+    },
+    {
+      "id": "release",
+      "label": "Release + version",
+      "type": "exec",
+      "command": "qik nexus version --mcp",
+      "parse": "json",
+      "on_fail": "report",
+      "description": "Preview each target's current and derived-next version read-only before `qik nexus bump <target>` rewrites it and `qik nexus release` closes the increment. The next number is computed from the current one and the released items' change natures, never guessed."
+    }
+  ],
+  "triggers": {
+    "on_demand": true,
+    "pre_edit": false,
+    "pre_commit": false
+  },
+  "output": {
+    "format": "statements",
+    "note": "`qik nexus ... --mcp` emits the same JSON shape the qik-mcp server exposes via the nexus_* tools."
+  }
+}
